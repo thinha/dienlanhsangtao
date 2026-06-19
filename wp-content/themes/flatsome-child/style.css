@@ -1,0 +1,30 @@
+/*
+Theme Name: Flatsome Child
+Description: This is a child theme for Flatsome Theme
+Author: UX Themes
+Template: flatsome
+Version: 3.0
+*/
+
+/*************** ADD CUSTOM CSS HERE.   ***************/
+.divider_left{border-left:thick solid red;padding-left:4px}.product_meta>span{border-top:0 dotted #FFF}.has-border{border:2px solid;padding:15px 30px 30px;border-color:#fff}.short_desc{background-color:#02344f;color:#fff;padding:4px 27px 0 9px;border-top-left-radius:4px;border-bottom-left-radius:4px;width:270px;clip-path:polygon(0 0,95% 0,100% 100%,0% 100%)}.product_meta{font-size:1em}p.in-stock{display:none}.box-text p{font-weight:700}.is-smaller{font-style:oblique;font-family:'maison-neue-bold',Helvetica,sans-serif!important;display:inline-block;padding:.1rem .6rem;line-height:20px!important;font-size:81%;text-align:center;vertical-align:baseline;border-radius:80px;transition:color .15s ease-in-out,background-color .15s ease-in-out,border-color .15s ease-in-out,box-shadow .15s ease-in-out;color:#fff;background:#2a33e2;margin:5px 3px 5px 0 !important;text-transform:none;opacity:1;font-weight:400}.widget{z-index:2}.button:not(.icon).sticky-side-button{right:-60px;float:right;position:fixed;top:calc(50% - 47px);transform:rotate(90deg);z-index:1;cursor:pointer;border-radius:0!important;margin:0}.button:not(.icon).sticky-footer-button{position:fixed;left:0;bottom:0;z-index:1;border-radius:0!important;margin-bottom:0}.popup-personal img{border-radius:99px;border:5px solid #fff;width:120px;height:120px}.popup-personal .col-inner{margin-top:-80px}.lightbox-content{border-radius:5px}.price-wrapper .price{display:grid}ul li.bullet-checkmark:before,ul li.bullet-arrow:before,ul li.bullet-star:before{color:red}#reviews{border:1px solid #cebee2;box-shadow:3px 2px 4px #000;border-left-width:1px!important;padding:9px}.badge-container{margin:0 0 0 8px}.col-breadcrumb{padding-top:9px;padding-bottom:9px}.breadcrumbs a{color:#007794}.woocommerce-product-rating{margin:-12.6px 0 0}.star-rating{font-size:14px;display:inline-block;vertical-align:text-bottom}.woocommerce-review-link{color:#007794;margin:0 0 0 9px;font-size:18px;position:absolute}.sku-wrapper{margin:-3px 0 0;font-size:small}.price-wrapper{margin:-8px 0 0}.buy_now{margin:auto;cursor:pointer;float:left;width:100%;overflow:hidden;padding:9px 0;border-radius:4px;font-size:16px;font-weight:600;text-transform:uppercase;color:#fff;text-align:center;background:#02344f;background:-webkit-gradient(linear,0% 0,0% 100%,from(#02334d),to(#054a6f));background:-webkit-linear-gradient(top,#054a6f,#02344f);background:-moz-linear-gradient(top,#f59000,#fd6e1d);background:-ms-linear-gradient(top,#f59000,#fd6e1d);background:-o-linear-gradient(top,#f59000,#fd6e1d);align-items:center}.buy_now_subtext{font-size:11px;line-height:20px;display:block;font-size:12px;color:#fff;text-transform:none;font-weight:400}ul li.bullet-checkmark,ul li.bullet-arrow,ul li.bullet-star{list-style:none;position:relative;padding:0 0 3px 12px;margin:0;border-bottom:0}
+
+.bg-feel-free{
+	padding-top: 23% !important;
+    background-repeat: no-repeat !important;
+    background-size: cover !important;
+    background-position: 42% 100% !important;
+}
+.p-20{
+	padding:20px;
+}
+@media (max-width: 767px){
+	.bg-feel-free{
+		padding-top: 35% !important;
+	}
+}
+@media only screen and (max-width: 48em) {
+/*************** ADD MOBILE ONLY CSS HERE  ***************/
+
+
+}

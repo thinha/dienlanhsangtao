@@ -1,0 +1,65 @@
+{
+  "name": "phone-orders-vue",
+  "private": true,
+  "version": "3.1.0",
+  "description": "Phone orders plugin with vue interface",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build-js": "browserify -t vueify -p [ vueify/plugins/extract-css -o assets/css/bundle.css ] -e assets/js/app.js --im -o assets/js/build-app.js",
+    "watch-js": "watchify -v -t vueify -p [ vueify/plugins/extract-css -o assets/css/bundle.css ] -e assets/js/app.js -o assets/js/build-app.js",
+    "prod": "cross-env NODE_ENV=production browserify -d --im -g envify -t vueify -p [ vueify/plugins/extract-css -o assets/css/bundle.css ] -e assets/js/app.js | exorcist assets/js/build-app.vue.js.map | uglifyjs --source-map \"content='assets/js/build-app.vue.js.map',url='build-app.js.map',includeSources\" -c warnings=false -m  -o assets/js/build-app.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://andrei0401@bitbucket.org/algolplus/phone-orders-for-woocommerce.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "homepage": "https://bitbucket.org/algolplus/phone-orders-for-woocommerce#readme",
+  "browser": {
+    "vue": "vue/dist/vue.common.js"
+  },
+  "devDependencies": {
+    "axios": "0.18.0",
+    "babel-core": "^6.26.3",
+    "babel-plugin-transform-runtime": "^6.23.0",
+    "babel-preset-es2015": "^6.24.1",
+    "babel-runtime": "^6.26.0",
+    "babelify": "^8.0.0",
+    "bootstrap-vue": "2.0.0-rc.10",
+    "cross-env": "^5.2.0",
+    "envify": "^4.1.0",
+    "exorcist": "^1.0.1",
+    "numeral": "^2.0.6",
+    "qs": "^6.5.2",
+    "uglify-js": "^3.4.5",
+    "uglifyjs": "^2.4.11",
+    "vue": "^2.6.11",
+    "vue-resource": "^1.5.1",
+    "vue-router": "^3.0.1",
+    "vue-spinner": "^1.0.3",
+    "vue-template-compiler": "^2.6.11",
+    "vueify": "^9.4.1",
+    "watchify": "^3.11.1"
+  },
+  "browserify": {
+    "transform": [
+      "babelify"
+    ]
+  },
+  "dependencies": {
+    "@fortawesome/fontawesome-svg-core": "^1.2.8",
+    "@fortawesome/free-regular-svg-icons": "^5.13.0",
+    "@fortawesome/free-solid-svg-icons": "^5.5.0",
+    "@fortawesome/vue-fontawesome": "^0.1.2",
+    "moment": "^2.22.2",
+    "vue-clipboard2": "^0.2.1",
+    "vue-multiselect": "^2.1.0",
+    "vue-select": "^2.4.0",
+    "vue-wp-list-table": "^1.1.0",
+    "vuedraggable": "^2.24.3",
+    "vuejs-datepicker": "^1.5.3",
+    "vuex": "^3.0.1"
+  }
+}

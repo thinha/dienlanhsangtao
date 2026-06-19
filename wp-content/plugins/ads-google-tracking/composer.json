@@ -1,0 +1,19 @@
+{
+    "name": "thanhnh/ads-google-tracking",
+    "description": "Ads Google Tracking",
+    "type": "project",
+    "license": "GPL",
+    "authors": [
+        {
+            "name": "anhthi1501",
+            "email": "thinha1501@gmail.com"
+        }
+    ],
+    "minimum-stability": "dev",
+    "require": {},
+    "autoload":{
+        "psr-4": {
+            "Inc\\":"./Inc"
+        }
+    }
+}

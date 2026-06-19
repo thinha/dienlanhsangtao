@@ -1,0 +1,72 @@
+# WordPress core
+/wp-admin/
+/wp-includes/
+/index.php
+/license.txt
+/readme.html
+/wp-*.php
+/xmlrpc.php
+
+# WordPress config - chứa thông tin database
+wp-config.php
+wp-config-local.php
+
+# Uploads - hình ảnh/media user upload
+/wp-content/uploads/
+/wp-content/upgrade/
+/wp-content/cache/
+/wp-content/backup*/
+/wp-content/backups/
+
+# Cache / logs
+*.log
+debug.log
+/wp-content/debug.log
+
+# Plugins/themes cache phổ biến
+/wp-content/w3tc-config/
+/wp-content/wp-cache-config.php
+/wp-content/cache/
+/wp-content/et-cache/
+/wp-content/litespeed/
+
+# Composer
+/vendor/
+composer.lock
+
+# Node / build
+/node_modules/
+npm-debug.log
+yarn-error.log
+package-lock.json
+yarn.lock
+.pnpm-store/
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Backup / export files
+*.sql
+*.sqlite
+*.zip
+*.tar
+*.tar.gz
+*.gz
+*.bak
+*.backup
+
+# Temporary files
+tmp/
+temp/
+.cache/acme.sh/
+acme.sh/

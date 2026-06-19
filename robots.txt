@@ -1,0 +1,8 @@
+User-agent: *
+Disallow: /wp-admin/
+Allow: /wp-admin/admin-ajax.php
+Sitemap:https://dienlanhsangtao.com/sitemap_index.xml
+
+User-agent: googlebot
+Disallow: /wp-content/plugins/wp-rocket/inc/front/js/lazyload-
+Sitemap:https://dienlanhsangtao.com/sitemap_index.xml
