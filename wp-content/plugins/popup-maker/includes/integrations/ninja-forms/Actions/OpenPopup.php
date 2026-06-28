@@ -1,19 +1,30 @@
-<?php if ( ! defined( 'ABSPATH' ) ) exit;
+<?php
+/**
+ * Integrations for ninja-forms actions open popup
+ *
+ * @package   PopupMaker
+ * @copyright Copyright (c) 2024, Code Atlantic LLC
+ *
+ * phpcs:disable PSR2.Classes.PropertyDeclaration.Underscore
+ */
+
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;}
 
 /**
  * Class NF_Action_SuccessMessage
  */
-final class NF_PUM_Actions_OpenPopup extends NF_Abstracts_Action
-{
+final class NF_PUM_Actions_OpenPopup extends NF_Abstracts_Action {
+
 	/**
 	 * @var string
 	 */
-	protected $_name  = 'openpopup';
+	protected $_name = 'openpopup';
 
 	/**
 	 * @var array
 	 */
-	protected $_tags = array();
+	protected $_tags = [];
 
 	/**
 	 * @var string
@@ -28,23 +39,24 @@ final class NF_PUM_Actions_OpenPopup extends NF_Abstracts_Action
 	/**
 	 * Constructor
 	 */
-	public function __construct()
-	{
+	public function __construct() {
 		parent::__construct();
 
 		$this->_nicename = __( 'Open Popup', 'popup-maker' );
 
-		$settings = array(
-			'popup' => array(
-				'name' => 'popup',
-				'type' => 'select',
-				'group' => 'primary',
-				'label' => __( 'Popup ID', 'popup-maker' ),
+		$settings = [
+			'popup' => [
+				'name'        => 'popup',
+				'type'        => 'select',
+				'group'       => 'primary',
+				'label'       => __( 'Popup ID', 'popup-maker' ),
 				'placeholder' => '',
-				'width' => 'full',
-				'options' => isset( $_GET['page'] ) && 'ninja-forms' === $_GET['page'] && ! empty( $_GET['form_id'] ) ? $this->get_popup_list() : array(),
-			),
-		);
+				'width'       => 'full',
+				// Ignored because we are checking explicit page string matches.
+				// phpcs:ignore WordPress.Security.NonceVerification.Recommended
+				'options'     => isset( $_GET['page'] ) && 'ninja-forms' === $_GET['page'] && ! empty( $_GET['form_id'] ) ? $this->get_popup_list() : [],
+			],
+		];
 
 		$this->_settings = array_merge( $this->_settings, $settings );
 	}
@@ -53,13 +65,13 @@ final class NF_PUM_Actions_OpenPopup extends NF_Abstracts_Action
 	* PUBLIC METHODS
 	*/
 
-	public function save( $action_settings )
-	{
-
+	/**
+	 * Saves the settings.
+	 */
+	public function save( $action_settings ) {
 	}
 
-	public function process( $action_settings, $form_id, $data )
-	{
+	public function process( $action_settings, $form_id, $data ) {
 		if ( ! isset( $data['actions'] ) || ! isset( $data['actions']['openpopup'] ) ) {
 			$data['actions']['openpopup'] = false;
 		}
@@ -72,23 +84,22 @@ final class NF_PUM_Actions_OpenPopup extends NF_Abstracts_Action
 	}
 
 	public function get_popup_list() {
-		$popup_list = array(
-			array(
+		$popup_list = [
+			[
 				'value' => '',
-				'label' => __( 'Select a popup', 'popup-maker' )
-			)
-		);
+				'label' => __( 'Select a popup', 'popup-maker' ),
+			],
+		];
 
 		$popups = pum_get_all_popups();
 
 		foreach ( $popups as $popup ) {
-			$popup_list[] = array(
+			$popup_list[] = [
 				'value' => $popup->ID,
-				'label' => $popup->post_title
-			);
+				'label' => $popup->post_title,
+			];
 		}
 
 		return $popup_list;
 	}
-
 }

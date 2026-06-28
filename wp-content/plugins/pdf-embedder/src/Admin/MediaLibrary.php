@@ -4,6 +4,7 @@ namespace PDFEmbedder\Admin;
 
 use WP_Post;
 use WP_User;
+use PDFEmbedder\Helpers\Check;
 use PDFEmbedder\Helpers\Links;
 
 /**
@@ -12,6 +13,13 @@ use PDFEmbedder\Helpers\Links;
  * @since 4.7.0
  */
 class MediaLibrary {
+
+	/**
+	 * MIME type for PDFs.
+	 *
+	 * @since 4.9.3
+	 */
+	public const MIME_TYPE = 'application/pdf';
 
 	/**
 	 * Assign all hooks to proper places.
@@ -42,9 +50,9 @@ class MediaLibrary {
 	 * @param array   $form_fields List of fields to display.
 	 * @param WP_Post $attachment  The WP_Post attachment object.
 	 */
-	public function attachment_fields_to_edit( array $form_fields, WP_Post $attachment ): array {
+	public function attachment_fields_to_edit( $form_fields, $attachment ): array {
 
-		if ( $attachment->post_mime_type !== 'application/pdf' ) {
+		if ( ! isset( $attachment->post_mime_type ) || $attachment->post_mime_type !== self::MIME_TYPE ) {
 			return $form_fields;
 		}
 
@@ -61,9 +69,9 @@ class MediaLibrary {
 		}
 
 		$file_url  = wp_get_attachment_url( $attachment->ID );
-		$is_secure = ! strpos( $file_url, '/securepdfs/' ) === false;
+		$is_secure = Check::is_secure_pdf_url( $file_url );
 
-		$secured_value  = '<span class="dashicons dashicons-unlock pdfemb-admin-attachment-meta-icon"></span>' . esc_html__( 'No', 'pdf-embedder-premium' ) . '.&nbsp;';
+		$secured_value  = '<span class="dashicons dashicons-unlock pdfemb-admin-attachment-meta-icon"></span>' . esc_html__( 'No', 'pdf-embedder' ) . '.&nbsp;';
 		$secured_value .= sprintf(
 			wp_kses( /* translators: %s - URL to the settings page. */
 				__( '<a href="%s">Learn more</a>', 'pdf-embedder' ),
@@ -73,17 +81,17 @@ class MediaLibrary {
 					],
 				]
 			),
-			esc_url( pdf_embedder()->admin()->get_settings_url( 'secure' ) )
+			esc_url( pdf_embedder()->admin()->get_url( 'secure' ) )
 		);
 
 		if ( $is_secure ) {
-			$secured_value = '<span class="dashicons dashicons-lock pdfemb-admin-attachment-meta-icon"></span>' . esc_html__( 'Yes', 'pdf-embedder-premium' );
+			$secured_value = '<span class="dashicons dashicons-lock pdfemb-admin-attachment-meta-icon"></span>' . esc_html__( 'Yes', 'pdf-embedder' );
 		}
 
 		$form_fields['pdfemb-secured-lite'] = [
 			'value' => $secured_value,
 			'input' => 'value',
-			'label' => __( 'PDF Secured', 'pdf-embedder-premium' ),
+			'label' => __( 'PDF Secured', 'pdf-embedder' ),
 		];
 
 		$form_fields['pdfemb-tracking-lite'] = [
@@ -97,7 +105,7 @@ class MediaLibrary {
 						],
 					]
 				),
-				esc_url( pdf_embedder()->admin()->get_settings_url() )
+				esc_url( pdf_embedder()->admin()->get_url() )
 			),
 			'input' => 'value',
 			'label' => __( 'PDF Downloads / Views', 'pdf-embedder' ),
@@ -115,7 +123,7 @@ class MediaLibrary {
 	 */
 	public function add_meta_boxes_attachment( WP_Post $attachment ) {
 
-		if ( $attachment->post_mime_type !== 'application/pdf' ) {
+		if ( $attachment->post_mime_type !== self::MIME_TYPE ) {
 			return;
 		}
 
@@ -124,7 +132,7 @@ class MediaLibrary {
 		}
 
 		$file_url  = wp_get_attachment_url( $attachment->ID );
-		$is_secure = ! strpos( $file_url, '/securepdfs/' ) === false;
+		$is_secure = Check::is_secure_pdf_url( $file_url );
 		?>
 
 		<div class="attachment_field_containers">
@@ -155,7 +163,7 @@ class MediaLibrary {
 								],
 							]
 						),
-						esc_url( pdf_embedder()->admin()->get_settings_url( 'secure' ) )
+						esc_url( pdf_embedder()->admin()->get_url( 'secure' ) )
 					);
 				}
 				?>
@@ -190,9 +198,9 @@ class MediaLibrary {
 	 * @param array            $mimes Mime types keyed by the file extension regex corresponding to those types.
 	 * @param int|WP_User|null $user  User ID, User object or null if not provided (indicates current user).
 	 */
-	public function add_pdf_to_upload_mimes( array $mimes, $user ): array { // phpcs:ignore Generic.CodeAnalysis.UnusedFunctionParameter.FoundAfterLastUsed
+	public function add_pdf_to_upload_mimes( $mimes, $user ): array { // phpcs:ignore Generic.CodeAnalysis.UnusedFunctionParameter.FoundAfterLastUsed
 
-		$mimes['pdf'] = 'application/pdf';
+		$mimes['pdf'] = self::MIME_TYPE;
 
 		return $mimes;
 	}
@@ -204,9 +212,9 @@ class MediaLibrary {
 	 *
 	 * @param array $post_mime_types Default list of post mime types.
 	 */
-	public function add_pdf_mime_type( array $post_mime_types ): array {
+	public function add_pdf_mime_type( $post_mime_types ): array {
 
-		$post_mime_types['application/pdf'] = [
+		$post_mime_types[ self::MIME_TYPE ] = [
 			__( 'PDFs', 'pdf-embedder' ),
 			__( 'Manage PDFs', 'pdf-embedder' ),
 			/* translators: %s - number of PDF files. */

@@ -11,6 +11,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit; // Exit if accessed directly.
 }
 
+use Automattic\WooCommerce\Internal\AssignDefaultCategory;
+
 /**
  * WC_Admin_Taxonomies class.
  */
@@ -49,6 +51,12 @@ class WC_Admin_Taxonomies {
 
 		// Category/term ordering.
 		add_action( 'create_term', array( $this, 'create_term' ), 5, 3 );
+		add_action(
+			'delete_product_cat',
+			function () {
+				wc_get_container()->get( AssignDefaultCategory::class )->schedule_action();
+			}
+		);
 
 		// Add form.
 		add_action( 'product_cat_add_form_fields', array( $this, 'add_category_fields' ) );
@@ -72,14 +80,15 @@ class WC_Admin_Taxonomies {
 
 		if ( ! empty( $attribute_taxonomies ) ) {
 			foreach ( $attribute_taxonomies as $attribute ) {
-				add_action( 'pa_' . $attribute->attribute_name . '_pre_add_form', array( $this, 'product_attribute_description' ) );
+				$taxonomy = 'pa_' . $attribute->attribute_name;
+				add_action( $taxonomy . '_pre_add_form', array( $this, 'product_attribute_description' ) );
 			}
 		}
 
 		// Maintain hierarchy of terms.
 		add_filter( 'wp_terms_checklist_args', array( $this, 'disable_checked_ontop' ) );
 
-		// Admin footer scripts for this product categories admin screen.
+		// Admin footer scripts for taxonomy screens.
 		add_action( 'admin_footer', array( $this, 'scripts_at_product_cat_screen_footer' ) );
 	}
 
@@ -91,13 +100,11 @@ class WC_Admin_Taxonomies {
 	 * @param string $taxonomy Taxonomy slug.
 	 */
 	public function create_term( $term_id, $tt_id = '', $taxonomy = '' ) {
-		if ( 'product_cat' != $taxonomy && ! taxonomy_is_product_attribute( $taxonomy ) ) {
+		if ( 'product_cat' !== $taxonomy && ! taxonomy_is_product_attribute( $taxonomy ) ) {
 			return;
 		}
 
-		$meta_name = taxonomy_is_product_attribute( $taxonomy ) ? 'order_' . esc_attr( $taxonomy ) : 'order';
-
-		update_term_meta( $term_id, $meta_name, 0 );
+		update_term_meta( $term_id, 'order', 0 );
 	}
 
 	/**
@@ -471,17 +478,33 @@ class WC_Admin_Taxonomies {
 	 * @return void
 	 */
 	public function scripts_at_product_cat_screen_footer() {
-		if ( ! isset( $_GET['taxonomy'] ) || 'product_cat' !== $_GET['taxonomy'] ) { // WPCS: CSRF ok, input var ok.
+		$taxonomy = isset( $_GET['taxonomy'] ) ? sanitize_text_field( wp_unslash( $_GET['taxonomy'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+		if ( 'product_cat' !== $taxonomy ) {
 			return;
 		}
+
+		$handle = 'wc-admin-taxonomies';
+		wp_register_script( $handle, '', array(), WC_VERSION, array( 'in_footer' => true ) );
+		wp_enqueue_script( $handle );
+
 		// Ensure the tooltip is displayed when the image column is disabled on product categories.
-		wc_enqueue_js(
-			"(function( $ ) {
-				'use strict';
-				var product_cat = $( 'tr#tag-" . absint( $this->default_cat_id ) . "' );
-				product_cat.find( 'th' ).empty();
-				product_cat.find( 'td.thumb span' ).detach( 'span' ).appendTo( product_cat.find( 'th' ) );
-			})( jQuery );"
+		wp_add_inline_script(
+			$handle,
+			sprintf(
+				"(function() {
+					'use strict';
+					const product_cat = document.getElementById('tag-%d');
+					if (product_cat) {
+						const th = product_cat.querySelector('th');
+						const thumbSpan = product_cat.querySelector('td.thumb span');
+						if (th && thumbSpan) {
+							th.innerHTML = '';
+							th.appendChild(thumbSpan);
+						}
+					}
+				})();",
+				absint( $this->default_cat_id )
+			)
 		);
 	}
 }

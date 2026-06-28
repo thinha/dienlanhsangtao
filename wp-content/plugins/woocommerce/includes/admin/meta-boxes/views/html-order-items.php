@@ -5,7 +5,21 @@
  * @package WooCommerce\Admin
  */
 
+use Automattic\WooCommerce\Enums\OrderStatus;
+use Automattic\WooCommerce\Internal\CostOfGoodsSold\CostOfGoodsSoldController;
+
 defined( 'ABSPATH' ) || exit;
+
+/**
+ * Allow plugins to determine whether refunds UI should be rendered in the template.
+ *
+ * @since 6.4.0
+ *
+ * @param bool     $render_refunds If the refunds UI should be rendered.
+ * @param int      $order_id       The Order ID.
+ * @param WC_Order $order          The Order object.
+ */
+$render_refunds = (bool) apply_filters( 'woocommerce_admin_order_should_render_refunds', 0 < $order->get_total() - $order->get_total_refunded() || 0 < absint( $order->get_item_count() - $order->get_item_count_refunded() ), $order->get_id(), $order );
 
 global $wpdb;
 
@@ -14,6 +28,7 @@ $line_items          = $order->get_items( apply_filters( 'woocommerce_admin_orde
 $discounts           = $order->get_items( 'discount' );
 $line_items_fee      = $order->get_items( 'fee' );
 $line_items_shipping = $order->get_items( 'shipping' );
+$cogs_is_enabled     = wc_get_container()->get( CostOfGoodsSoldController::class )->feature_is_enabled();
 
 if ( wc_tax_enabled() ) {
 	$order_taxes      = $order->get_taxes();
@@ -28,7 +43,10 @@ if ( wc_tax_enabled() ) {
 			<tr>
 				<th class="item sortable" colspan="2" data-sort="string-ins"><?php esc_html_e( 'Item', 'woocommerce' ); ?></th>
 				<?php do_action( 'woocommerce_admin_order_item_headers', $order ); ?>
-				<th class="item_cost sortable" data-sort="float"><?php esc_html_e( 'Cost', 'woocommerce' ); ?></th>
+				<?php if ( $cogs_is_enabled ) : ?>
+					<th class="item_cost_of_goods sortable" data-sort="float"><?php esc_html_e( 'Cost', 'woocommerce' ); ?></th>
+				<?php endif; ?>
+				<th class="item_cost sortable" data-sort="float"><?php esc_html_e( 'Price', 'woocommerce' ); ?></th>
 				<th class="quantity sortable" data-sort="int"><?php esc_html_e( 'Qty', 'woocommerce' ); ?></th>
 				<th class="line_cost sortable" data-sort="float"><?php esc_html_e( 'Total', 'woocommerce' ); ?></th>
 				<?php
@@ -107,8 +125,14 @@ if ( wc_tax_enabled() ) {
 				<li><strong><?php esc_html_e( 'Coupon(s)', 'woocommerce' ); ?></strong></li>
 				<?php
 				foreach ( $coupons as $item_id => $item ) :
-					$post_id = $wpdb->get_var( $wpdb->prepare( "SELECT ID FROM {$wpdb->posts} WHERE post_title = %s AND post_type = 'shop_coupon' AND post_status = 'publish' LIMIT 1;", $item->get_code() ) ); // phpcs:disable WordPress.WP.GlobalVariablesOverride.Prohibited
-					$class   = $order->is_editable() ? 'code editable' : 'code';
+					$coupon_info = $item->get_meta( 'coupon_info' );
+					if ( $coupon_info ) {
+						$coupon_info = json_decode( $coupon_info, true );
+						$post_id     = $coupon_info[0]; //phpcs:ignore WordPress.WP.GlobalVariablesOverride.Prohibited
+					} else {
+						$post_id = $wpdb->get_var( $wpdb->prepare( "SELECT ID FROM {$wpdb->posts} WHERE LOWER(post_title) = LOWER(%s) AND post_type = 'shop_coupon' AND post_status = 'publish' AND post_date < %s LIMIT 1;", wc_sanitize_coupon_code( $item->get_code() ), $order->get_date_created()->format( 'Y-m-d H:i:s' ) ) ); // phpcs:disable WordPress.WP.GlobalVariablesOverride.Prohibited
+					}
+					$class = $order->is_editable() ? 'code editable' : 'code';
 					?>
 					<li class="<?php echo esc_attr( $class ); ?>">
 						<?php if ( $post_id ) : ?>
@@ -152,14 +176,14 @@ if ( wc_tax_enabled() ) {
 			</tr>
 		<?php if ( 0 < $order->get_total_discount() ) : ?>
 			<tr>
-				<td class="label"><?php esc_html_e( 'Coupon(s):', 'woocommerce' ); ?></td>
+				<td class="label"><?php esc_html_e( 'Discount:', 'woocommerce' ); ?></td>
 				<td width="1%"></td>
 				<td class="total">-
 					<?php echo wc_price( $order->get_total_discount(), array( 'currency' => $order->get_currency() ) ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
 				</td>
 			</tr>
 		<?php endif; ?>
-		<?php if ( 0 < $order->get_total_fees() ) : ?>
+		<?php if ( abs( $order->get_total_fees() ) > 0 ) : ?>
 			<tr>
 				<td class="label"><?php esc_html_e( 'Fees:', 'woocommerce' ); ?></td>
 				<td width="1%"></td>
@@ -189,7 +213,10 @@ if ( wc_tax_enabled() ) {
 					<td class="label"><?php echo esc_html( $tax_total->label ); ?>:</td>
 					<td width="1%"></td>
 					<td class="total">
-						<?php echo wc_price( $tax_total->amount, array( 'currency' => $order->get_currency() ) ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+						<?php
+							// We use wc_round_tax_total here because tax may need to be round up or round down depending upon settings, whereas wc_price alone will always round it down.
+							echo wc_price( wc_round_tax_total( $tax_total->amount ), array( 'currency' => $order->get_currency() ) ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+						?>
 					</td>
 				</tr>
 			<?php endforeach; ?>
@@ -209,7 +236,7 @@ if ( wc_tax_enabled() ) {
 
 	<div class="clear"></div>
 
-	<?php if ( in_array( $order->get_status(), array( 'processing', 'completed', 'refunded' ), true ) && ! empty( $order->get_date_paid() ) ) : ?>
+	<?php if ( in_array( $order->get_status(), array( OrderStatus::PROCESSING, OrderStatus::COMPLETED, OrderStatus::REFUNDED ), true ) && ! empty( $order->get_date_paid() ) ) : ?>
 
 		<table class="wc-order-totals" style="border-top: 1px solid #999; margin-top:12px; padding-top:12px">
 			<tr>
@@ -261,6 +288,20 @@ if ( wc_tax_enabled() ) {
 		</table>
 	<?php endif; ?>
 
+	<?php if ( $cogs_is_enabled ) : ?>
+		<div class="clear"></div>
+
+		<table class="wc-order-totals">
+			<tr>
+				<td class="label cost-total"><?php esc_html_e( 'Cost Total', 'woocommerce' ); ?>:</td>
+				<td width="1%"></td>
+				<td class="total cost-total">
+					<?php echo wp_kses_post( $order->get_cogs_total_value_html() ); ?>
+				</td>
+			</tr>
+		</table>
+	<?php endif; ?>
+
 	<div class="clear"></div>
 
 	<table class="wc-order-totals">
@@ -277,9 +318,9 @@ if ( wc_tax_enabled() ) {
 				<button type="button" class="button add-coupon"><?php esc_html_e( 'Apply coupon', 'woocommerce' ); ?></button>
 			<?php endif; ?>
 		<?php else : ?>
-			<span class="description"><?php echo wc_help_tip( __( 'To edit this order change the status back to "Pending"', 'woocommerce' ) ); ?> <?php esc_html_e( 'This order is no longer editable.', 'woocommerce' ); ?></span>
+			<span class="description"><?php echo wc_help_tip( __( 'To edit this order change the status back to "Pending payment"', 'woocommerce' ) ); ?> <?php esc_html_e( 'This order is no longer editable.', 'woocommerce' ); ?></span>
 		<?php endif; ?>
-		<?php if ( 0 < $order->get_total() - $order->get_total_refunded() || 0 < absint( $order->get_item_count() - $order->get_item_count_refunded() ) ) : ?>
+		<?php if ( $render_refunds ) : ?>
 			<button type="button" class="button refund-items"><?php esc_html_e( 'Refund', 'woocommerce' ); ?></button>
 		<?php endif; ?>
 		<?php
@@ -305,7 +346,7 @@ if ( wc_tax_enabled() ) {
 	<button type="button" class="button cancel-action"><?php esc_html_e( 'Cancel', 'woocommerce' ); ?></button>
 	<button type="button" class="button button-primary save-action"><?php esc_html_e( 'Save', 'woocommerce' ); ?></button>
 </div>
-<?php if ( 0 < $order->get_total() - $order->get_total_refunded() || 0 < absint( $order->get_item_count() - $order->get_item_count_refunded() ) ) : ?>
+<?php if ( $render_refunds ) : ?>
 <div class="wc-order-data-row wc-order-refund-items wc-order-data-row-toggle" style="display: none;">
 	<table class="wc-order-totals">
 		<?php if ( 'yes' === get_option( 'woocommerce_manage_stock' ) ) : ?>
@@ -408,7 +449,7 @@ if ( wc_tax_enabled() ) {
 					</form>
 				</article>
 				<footer>
-					<div class="inner">
+					<div class="wc-backbone-modal-buttons">
 						<button id="btn-ok" class="button button-primary button-large"><?php esc_html_e( 'Add', 'woocommerce' ); ?></button>
 					</div>
 				</footer>
@@ -464,7 +505,7 @@ if ( wc_tax_enabled() ) {
 					</form>
 				</article>
 				<footer>
-					<div class="inner">
+					<div class="wc-backbone-modal-buttons">
 						<button id="btn-ok" class="button button-primary button-large"><?php esc_html_e( 'Add', 'woocommerce' ); ?></button>
 					</div>
 				</footer>

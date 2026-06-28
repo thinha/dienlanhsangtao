@@ -1,12 +1,15 @@
 <?php
-/*******************************************************************************
- * Copyright (c) 2019, Code Atlantic LLC
- ******************************************************************************/
+/**
+ * Class for Admin Pages
+ *
+ * @package   PopupMaker
+ * @copyright Copyright (c) 2024, Code Atlantic LLC
+ */
 
+// Exit if accessed directly.
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
-
 
 /**
  * Class PUM_Admin_Pages
@@ -19,14 +22,14 @@ class PUM_Admin_Pages {
 	/**
 	 * @var array
 	 */
-	public static $pages = array();
+	public static $pages = [];
 
 	/**
 	 *
 	 */
 	public static function init() {
-		add_action( 'admin_menu', array( __CLASS__, 'register_pages' ) );
-		add_action( 'admin_head',  array( __CLASS__, 'reorder_admin_submenu' ) );
+		add_action( 'admin_menu', [ __CLASS__, 'register_pages' ] );
+		add_action( 'admin_head', [ __CLASS__, 'reorder_admin_submenu' ] );
 	}
 
 	/**
@@ -41,48 +44,99 @@ class PUM_Admin_Pages {
 	}
 
 	/**
+	 * Get upgrade menu item based on license status.
+	 *
+	 * @return array|null Menu item array or null to exclude from menu.
+	 */
+	private static function get_upgrade_menu_item() {
+		try {
+			$license_service = \PopupMaker\plugin( 'license' );
+			$license_status  = $license_service->get_license_status();
+			$license_tier    = $license_service->get_license_tier();
+
+			// Pro Plus license - don't show upgrade menu.
+			if ( 'valid' === $license_status && 'pro_plus' === $license_tier ) {
+				return null;
+			}
+
+			// Pro license (valid) - show "Go Pro+".
+			if ( 'valid' === $license_status && 'pro' === $license_tier ) {
+				$menu_title = __( 'Go Pro+', 'popup-maker' );
+			} else {
+				// No license or invalid license - show "Go Pro".
+				$menu_title = __( 'Go Pro', 'popup-maker' );
+			}
+
+			return [
+				'page_title' => $menu_title,
+				'menu_slug'  => 'pum-settings#go-pro',
+				'capability' => 'edit_posts',
+				'callback'   => [ 'PUM_Admin_Settings', 'page' ],
+			];
+		} catch ( \Exception $e ) {
+			// Fallback to default if license service unavailable.
+			return [
+				'page_title' => __( 'Go Pro', 'popup-maker' ),
+				'menu_slug'  => 'pum-settings#go-pro',
+				'capability' => 'edit_posts',
+				'callback'   => [ 'PUM_Admin_Settings', 'page' ],
+			];
+		}
+	}
+
+	/**
 	 * Creates the admin submenu pages under the Popup Maker menu and assigns their
 	 * links to global variables
 	 */
 	public static function register_pages() {
 
-		$admin_pages = apply_filters( 'pum_admin_pages', array(
-			'subscribers' => array(
-				'page_title'  => __( 'Subscribers', 'popup-maker' ),
-				'capability'  => 'manage_options',
-				'callback'    => array( 'PUM_Admin_Subscribers', 'page' ),
-			),
-			'settings'   => array(
-				'page_title'  => __( 'Settings', 'popup-maker' ),
-				'capability'  => 'manage_options',
-				'callback'    => array( 'PUM_Admin_Settings', 'page' ),
-			),
-			'extensions' => array(
-				'page_title'  => __( 'Upgrade', 'popup-maker' ),
-				'capability'  => 'edit_posts',
-				'callback'    => array( 'PUM_Admin_Extend', 'page' ),
-			),
-			'support'    => array(
-				'page_title'  => __( 'Help & Support', 'popup-maker' ),
-				'capability'  => 'edit_posts',
-				'callback'    => array( 'PUM_Admin_Support', 'page' ),
-			),
-			'tools'      => array(
-				'page_title'  => __( 'Tools', 'popup-maker' ),
-				'capability'  => 'manage_options',
-				'callback'    => array( 'PUM_Admin_Tools', 'page' ),
-			),
-		) );
+		// Determine upgrade menu item based on license status.
+		$upgrade_menu_item = self::get_upgrade_menu_item();
+
+		$admin_pages = apply_filters(
+			'pum_admin_pages',
+			[
+				'subscribers' => [
+					'page_title' => __( 'Subscribers', 'popup-maker' ),
+					'capability' => 'manage_options',
+					'callback'   => [ 'PUM_Admin_Subscribers', 'page' ],
+				],
+				'settings'    => [
+					'page_title' => __( 'Settings', 'popup-maker' ),
+					'capability' => 'manage_options',
+					'callback'   => [ 'PUM_Admin_Settings', 'page' ],
+				],
+				'extensions'  => $upgrade_menu_item,
+				'support'     => [
+					'page_title' => __( 'Help & Support', 'popup-maker' ),
+					'capability' => 'edit_posts',
+					'callback'   => [ 'PUM_Admin_Support', 'page' ],
+				],
+				'tools'       => [
+					'page_title' => __( 'Tools', 'popup-maker' ),
+					'capability' => 'manage_options',
+					'callback'   => [ 'PUM_Admin_Tools', 'page' ],
+				],
+			]
+		);
 
 		foreach ( $admin_pages as $key => $page ) {
-			$page = wp_parse_args( $page, array(
-				'parent_slug' => 'edit.php?post_type=popup',
-				'page_title'  => '',
-				'menu_title'  => '',
-				'capability'  => 'manage_options',
-				'menu_slug'   => '',
-				'callback'    => '',
-			) );
+			// Skip null pages (e.g., upgrade menu for Pro Plus users).
+			if ( null === $page ) {
+				continue;
+			}
+
+			$page = wp_parse_args(
+				$page,
+				[
+					'parent_slug' => 'edit.php?post_type=popup',
+					'page_title'  => '',
+					'menu_title'  => '',
+					'capability'  => 'manage_options',
+					'menu_slug'   => '',
+					'callback'    => '',
+				]
+			);
 
 			// Backward compatibility.
 			$page['capability'] = apply_filters( 'popmake_admin_submenu_' . $key . '_capability', $page['capability'] );
@@ -99,7 +153,7 @@ class PUM_Admin_Pages {
 
 			self::$pages[ $key ] = add_submenu_page( $page['parent_slug'], $page['page_title'], $page['menu_title'], $page['capability'], $page['menu_slug'], $page['callback'] );
 			// For backward compatibility.
-			$GLOBALS[ "popmake_" . $key . "_page" ] = self::$pages[ $key ];
+			$GLOBALS[ 'popmake_' . $key . '_page' ] = self::$pages[ $key ];
 		}
 
 		// Add shortcut to theme editor from Appearance menu.
@@ -108,7 +162,7 @@ class PUM_Admin_Pages {
 
 
 	/**
-	 * Submenu filter function. Tested with Wordpress 4.1.1
+	 * Submenu filter function. Tested with WordPress 4.1.1
 	 * Sort and order submenu positions to match our custom order.
 	 *
 	 * @since 1.4
@@ -118,7 +172,7 @@ class PUM_Admin_Pages {
 
 		if ( isset( $submenu['edit.php?post_type=popup'] ) ) {
 			// Sort the menu according to your preferences
-			usort( $submenu['edit.php?post_type=popup'], array( __CLASS__, 'reorder_submenu_array' ) );
+			usort( $submenu['edit.php?post_type=popup'], [ __CLASS__, 'reorder_submenu_array' ] );
 		}
 	}
 
@@ -137,46 +191,54 @@ class PUM_Admin_Pages {
 	 * @return int
 	 */
 	public static function reorder_submenu_array( $a, $b ) {
-		$first_pages = apply_filters( 'pum_admin_submenu_first_pages', array(
-			__( 'All Popups', 'popup-maker' ),
-			__( 'Add New', 'popup-maker' ),
-			__( 'All Themes', 'popup-maker' ),
-			__( 'Categories', 'popup-maker' ),
-			__( 'Tags', 'popup-maker' ),
-		) );
-		$last_pages  = apply_filters( 'pum_admin_submenu_last_pages', array(
-			__( 'Extend', 'popup-maker' ),
-			__( 'Settings', 'popup-maker' ),
-			__( 'Tools', 'popup-maker' ),
-			__( 'Support Forum', 'popup-maker' ),
-			__( 'Account', 'popup-maker' ),
-			__( 'Contact Us', 'popup-maker' ),
-			__( 'Help & Support', 'popup-maker' ),
-		) );
+		$first_pages = apply_filters(
+			'pum_admin_submenu_first_pages',
+			[
+				__( 'All Popups', 'popup-maker' ),
+				__( 'Add New', 'popup-maker' ),
+				__( 'All Themes', 'popup-maker' ),
+				__( 'Categories', 'popup-maker' ),
+				__( 'Tags', 'popup-maker' ),
+			]
+		);
+
+		$last_pages = apply_filters(
+			'pum_admin_submenu_last_pages',
+			[
+				__( 'Settings', 'popup-maker' ),
+				__( 'Tools', 'popup-maker' ),
+				__( 'Support Forum', 'popup-maker' ),
+				__( 'Account', 'popup-maker' ),
+				__( 'Contact Us', 'popup-maker' ),
+				__( 'Go Pro', 'popup-maker' ),
+				__( 'Go Pro+', 'popup-maker' ),
+				__( 'Help & Support', 'popup-maker' ),
+			]
+		);
 
 		$a_val = strip_tags( $a[0], false );
 		$b_val = strip_tags( $b[0], false );
 
 		// Sort First Page Keys.
-		if ( in_array( $a_val, $first_pages ) && ! in_array( $b_val, $first_pages ) ) {
+		if ( in_array( $a_val, $first_pages, true ) && ! in_array( $b_val, $first_pages, true ) ) {
 			return - 1;
-		} elseif ( ! in_array( $a_val, $first_pages ) && in_array( $b_val, $first_pages ) ) {
+		} elseif ( ! in_array( $a_val, $first_pages, true ) && in_array( $b_val, $first_pages, true ) ) {
 			return 1;
-		} elseif ( in_array( $a_val, $first_pages ) && in_array( $b_val, $first_pages ) ) {
-			$a_key = array_search( $a_val, $first_pages );
-			$b_key = array_search( $b_val, $first_pages );
+		} elseif ( in_array( $a_val, $first_pages, true ) && in_array( $b_val, $first_pages, true ) ) {
+			$a_key = array_search( $a_val, $first_pages, true );
+			$b_key = array_search( $b_val, $first_pages, true );
 
 			return ( $a_key < $b_key ) ? - 1 : 1;
 		}
 
 		// Sort Last Page Keys.
-		if ( in_array( $a_val, $last_pages ) && ! in_array( $b_val, $last_pages ) ) {
+		if ( in_array( $a_val, $last_pages, true ) && ! in_array( $b_val, $last_pages, true ) ) {
 			return 1;
-		} elseif ( ! in_array( $a_val, $last_pages ) && in_array( $b_val, $last_pages ) ) {
+		} elseif ( ! in_array( $a_val, $last_pages, true ) && in_array( $b_val, $last_pages, true ) ) {
 			return - 1;
-		} elseif ( in_array( $a_val, $last_pages ) && in_array( $b_val, $last_pages ) ) {
-			$a_key = array_search( $a_val, $last_pages );
-			$b_key = array_search( $b_val, $last_pages );
+		} elseif ( in_array( $a_val, $last_pages, true ) && in_array( $b_val, $last_pages, true ) ) {
+			$a_key = array_search( $a_val, $last_pages, true );
+			$b_key = array_search( $b_val, $last_pages, true );
 
 			return ( $a_key < $b_key ) ? - 1 : 1;
 		}

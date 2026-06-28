@@ -1,7 +1,10 @@
 <?php
-/*******************************************************************************
- * Copyright (c) 2019, Code Atlantic LLC
- ******************************************************************************/
+/**
+ * Abstract for post models
+ *
+ * @package   PopupMaker
+ * @copyright Copyright (c) 2024, Code Atlantic LLC
+ */
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -147,7 +150,7 @@ abstract class PUM_Abstract_Model_Post {
 	public $comment_count = 0;
 
 	/**
-	 * @var
+	 * @var string
 	 */
 	public $filter;
 
@@ -158,6 +161,8 @@ abstract class PUM_Abstract_Model_Post {
 
 	/**
 	 * The required post type of the object.
+	 *
+	 * @var string|string[]|false
 	 */
 	protected $required_post_type = false;
 
@@ -205,12 +210,9 @@ abstract class PUM_Abstract_Model_Post {
 	 */
 	protected function is_required_post_type( $post ) {
 		if ( $this->required_post_type ) {
-
-			if ( is_array( $this->required_post_type ) && ! in_array( $post->post_type, $this->required_post_type ) ) {
-
+			if ( is_array( $this->required_post_type ) && ! in_array( $post->post_type, $this->required_post_type, true ) ) {
 				return false;
-			} else if ( is_string( $this->required_post_type ) && $this->required_post_type !== $post->post_type ) {
-
+			} elseif ( is_string( $this->required_post_type ) && $this->required_post_type !== $post->post_type ) {
 				return false;
 			}
 		}
@@ -229,7 +231,7 @@ abstract class PUM_Abstract_Model_Post {
 	 */
 	public function __call( $name, $arguments ) {
 		if ( method_exists( $this, 'get_' . $name ) ) {
-			return call_user_func_array( array( $this, 'get_' . $name ), $arguments );
+			return call_user_func_array( [ $this, 'get_' . $name ], $arguments );
 		}
 	}
 
@@ -243,21 +245,23 @@ abstract class PUM_Abstract_Model_Post {
 	public function __get( $key ) {
 
 		if ( method_exists( $this, 'get_' . $key ) ) {
-
-			return call_user_func( array( $this, 'get_' . $key ) );
-
+			return call_user_func( [ $this, 'get_' . $key ] );
 		} else {
-
 			$meta = $this->get_meta( $key );
 
 			if ( $meta ) {
 				return $meta;
 			}
 
-			return new WP_Error( 'post-invalid-property', sprintf( __( 'Can\'t get property %s' ), $key ) );
-
+			return new WP_Error(
+				'post-invalid-property',
+				sprintf(
+					/* translators: %s is the property name. */
+					__( 'Can\'t get property %s', 'default' ),
+					$key
+				)
+			);
 		}
-
 	}
 
 	/**
@@ -279,7 +283,9 @@ abstract class PUM_Abstract_Model_Post {
 		/**
 		 * Checks for remapped meta values. This allows easily adding compatibility layers in the object meta.
 		 */
-		if ( false !== $remapped_value = $this->remapped_meta( $key ) ) {
+		$remapped_value = $this->remapped_meta( $key );
+
+		if ( false !== $remapped_value ) {
 			return $remapped_value;
 		}
 
@@ -349,35 +355,34 @@ abstract class PUM_Abstract_Model_Post {
 	 * @return bool
 	 */
 	public function is_trash() {
-		return get_post_status( $this->ID ) == 'trash';
+		return get_post_status( $this->ID ) === 'trash';
 	}
 
 	/**
 	 * @return bool
 	 */
 	public function is_published() {
-		return get_post_status( $this->ID ) == 'publish';
+		return get_post_status( $this->ID ) === 'publish';
 	}
 
 	/**
 	 * @return bool
 	 */
 	public function is_draft() {
-		return get_post_status( $this->ID ) == 'draft';
+		return get_post_status( $this->ID ) === 'draft';
 	}
 
 	/**
 	 * @return bool
 	 */
 	public function is_private() {
-		return get_post_status( $this->ID ) == 'private';
+		return get_post_status( $this->ID ) === 'private';
 	}
 
 	/**
 	 * @return bool
 	 */
 	public function is_pending() {
-		return get_post_status( $this->ID ) == 'pending';
-
+		return get_post_status( $this->ID ) === 'pending';
 	}
 }

@@ -1,7 +1,10 @@
 <?php
-/*******************************************************************************
- * Copyright (c) 2019, Code Atlantic LLC
- ******************************************************************************/
+/**
+ * Shortcode class
+ *
+ * @package   PopupMaker
+ * @copyright Copyright (c) 2024, Code Atlantic LLC
+ */
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -70,14 +73,12 @@ abstract class PUM_Shortcode {
 
 	/**
 	 * Class constructor will set the needed filter and action hooks
-	 *
-	 * @param array $args
 	 */
-	public function __construct( $args = array() ) {
+	public function __construct() {
 		if ( ! did_action( 'init' ) ) {
-			add_action( 'init', array( $this, 'register' ) );
-		} elseif ( ! did_action( 'admin_head' ) && current_action() != 'init' ) {
-			add_action( 'admin_head', array( $this, 'register' ) );
+			add_action( 'init', [ $this, 'register' ] );
+		} elseif ( ! did_action( 'admin_head' ) && current_action() !== 'init' ) {
+			add_action( 'admin_head', [ $this, 'register' ] );
 		} else {
 			$this->register();
 		}
@@ -87,9 +88,9 @@ abstract class PUM_Shortcode {
 	 * Register this shortcode with Shortcode UI & Shortcake.
 	 */
 	public function register() {
-		add_shortcode( $this->tag(), array( $this, 'handler' ) );
-		add_action( 'print_media_templates', array( $this, 'render_template' ) );
-		add_action( 'register_shortcode_ui', array( $this, 'register_shortcode_ui' ) );
+		add_shortcode( $this->tag(), [ $this, 'handler' ] );
+		add_action( 'print_media_templates', [ $this, 'render_template' ] );
+		add_action( 'register_shortcode_ui', [ $this, 'register_shortcode_ui' ] );
 
 		PUM_Shortcodes::instance()->add_shortcode( $this );
 	}
@@ -104,7 +105,7 @@ abstract class PUM_Shortcode {
 	 */
 	public static function init() {
 		$class = get_called_class();
-		return new $class;
+		return new $class();
 	}
 
 	/**
@@ -117,20 +118,20 @@ abstract class PUM_Shortcode {
 	 */
 	abstract public function handler( $atts, $content = null );
 
-	public function _tabs() {
+	public function _tabs() { // phpcs:ignore PSR2.Methods.MethodDeclaration.Underscore
 		$tabs = $this->version < 2 && method_exists( $this, 'sections' ) ? $this->sections() : $this->tabs();
 
 		return apply_filters( 'pum_shortcode_tabs', $tabs, $this->tag() );
 	}
 
-	public function _subtabs() {
-		$subtabs = $this->version >= 2 && method_exists( $this, 'subtabs' ) ? $this->subtabs() : false;
+	public function _subtabs() { // phpcs:ignore PSR2.Methods.MethodDeclaration.Underscore
+		$subtabs = $this->version >= 2 && method_exists( $this, 'subtabs' ) ? $this->subtabs() : [];
 
 		foreach ( $this->_tabs() as $tab_id => $tab_label ) {
 			if ( empty( $subtabs[ $tab_id ] ) || ! is_array( $subtabs[ $tab_id ] ) ) {
-				$subtabs[ $tab_id ] = array(
+				$subtabs[ $tab_id ] = [
 					'main' => $tab_label,
-				);
+				];
 			}
 		}
 
@@ -147,10 +148,12 @@ abstract class PUM_Shortcode {
 	 * @return array
 	 */
 	public function sections() {
-		return array(
-			'general' => __( 'General', 'popup-maker' ),
-			'options' => __( 'Options', 'popup-maker' ),
-		);
+		return [
+			'general'    => __( 'General', 'popup-maker' ),
+			'options'    => __( 'Options', 'popup-maker' ),
+			'appearance' => __( 'Appearance', 'popup-maker' ),
+			'extra'      => __( 'Extra', 'popup-maker' ),
+		];
 	}
 
 	/**
@@ -159,10 +162,12 @@ abstract class PUM_Shortcode {
 	 * @return array
 	 */
 	public function tabs() {
-		return array(
-			'general' => __( 'General', 'popup-maker' ),
-			'options' => __( 'Options', 'popup-maker' ),
-		);
+		return [
+			'general'    => __( 'General', 'popup-maker' ),
+			'options'    => __( 'Options', 'popup-maker' ),
+			'appearance' => __( 'Appearance', 'popup-maker' ),
+			'extra'      => __( 'Extra', 'popup-maker' ),
+		];
 	}
 
 	/**
@@ -171,14 +176,20 @@ abstract class PUM_Shortcode {
 	 * @return array
 	 */
 	public function subtabs() {
-		return array(
-			'general' => array(
+		return [
+			'general'    => [
 				'main' => __( 'General', 'popup-maker' ),
-			),
-			'options' => array(
+			],
+			'options'    => [
 				'main' => __( 'Options', 'popup-maker' ),
-			),
-		);
+			],
+			'appearance' => [
+				'main' => __( 'Appearance', 'popup-maker' ),
+			],
+			'extra'      => [
+				'main' => __( 'Extra', 'popup-maker' ),
+			],
+		];
 	}
 
 	/**
@@ -190,10 +201,10 @@ abstract class PUM_Shortcode {
 	 */
 	public function shortcode_atts( $atts ) {
 		if ( ! is_array( $atts ) ) {
-			$atts = array();
+			$atts = [];
 		}
 
-		foreach( $atts  as $key => $value ) {
+		foreach ( $atts  as $key => $value ) {
 			/**
 			 * Fix for truthy & value-less arguments such as [shortcode argument]
 			 */
@@ -214,7 +225,7 @@ abstract class PUM_Shortcode {
 	 * @return array
 	 */
 	public function defaults() {
-		$defaults = array();
+		$defaults = [];
 
 		$fields = PUM_Admin_Helpers::flatten_fields_array( $this->fields() );
 
@@ -230,7 +241,7 @@ abstract class PUM_Shortcode {
 	 */
 	public function render_template() {
 		if ( $this->version >= 2 && $this->get_template() !== false ) {
-			echo '<script type="text/html" id="tmpl-pum-shortcode-view-' . $this->tag() . '">';
+			echo '<script type="text/html" id="tmpl-pum-shortcode-view-' . esc_attr( $this->tag() ) . '">';
 			$this->style_block();
 			$this->template();
 			echo '</script>';
@@ -245,11 +256,9 @@ abstract class PUM_Shortcode {
 	 *
 	 * @todo Once all shortcodes have been updated to use template over _template make this abstract.
 	 *
-	 * @return bool|string
+	 * @return void
 	 */
-	public function template() {
-		return false;
-	}
+	public function template() {}
 
 	/**
 	 * Render the template based on shortcode classes methods.
@@ -257,7 +266,8 @@ abstract class PUM_Shortcode {
 	public function style_block() {
 		$styles = $this->get_template_styles();
 
-		if ( $styles !== false ) {
+		if ( false !== $styles ) {
+			// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
 			echo '<style>' . $styles . '</style>';
 		}
 	}
@@ -265,7 +275,7 @@ abstract class PUM_Shortcode {
 	/**
 	 * @deprecated 1.7.0 Use template() instead.
 	 */
-	public function _template() {
+	public function _template() { // phpcs:ignore PSR2.Methods.MethodDeclaration.Underscore
 	}
 
 	/**
@@ -280,6 +290,7 @@ abstract class PUM_Shortcode {
 		$this->template_styles();
 
 		/**  $this->_template_styles() is @deprecated and here in case shortcode doesn't yet have the new $this->template() method. */
+		// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
 		echo $this->_template_styles();
 
 		$styles = ob_get_clean();
@@ -299,7 +310,7 @@ abstract class PUM_Shortcode {
 	 *
 	 * @return string
 	 */
-	public function _template_styles() {
+	public function _template_styles() { // phpcs:ignore PSR2.Methods.MethodDeclaration.Underscore
 		return '';
 	}
 
@@ -329,12 +340,12 @@ abstract class PUM_Shortcode {
 			return;
 		}
 
-		$shortcode_ui_args = array(
+		$shortcode_ui_args = [
 			'label'         => $this->label(),
 			'listItemImage' => $this->icon(),
 			'post_type'     => apply_filters( 'pum_shortcode_post_types', $this->post_types(), $this ),
-			'attrs'         => array(),
-		);
+			'attrs'         => [],
+		];
 
 		/**
 		 * Register UI for the "inner content" of the shortcode. Optional.
@@ -351,19 +362,19 @@ abstract class PUM_Shortcode {
 			foreach ( $fields as $field_id => $field ) {
 
 				// Don't register inner content fields.
-				if ( '_inner_content' == $field_id ) {
+				if ( '_inner_content' === $field_id ) {
 					continue;
 				}
 
-				//text, checkbox, textarea, radio, select, email, url, number, date, attachment, color, post_select
+				// text, checkbox, textarea, radio, select, email, url, number, date, attachment, color, post_select
 				switch ( $field['type'] ) {
 					case 'select':
-						$shortcode_ui_args['attrs'][] = array(
+						$shortcode_ui_args['attrs'][] = [
 							'label'   => esc_html( $field['label'] ),
 							'attr'    => $field_id,
 							'type'    => 'select',
 							'options' => $field['options'],
-						);
+						];
 						break;
 
 					case 'postselect':
@@ -371,30 +382,30 @@ abstract class PUM_Shortcode {
 						if ( empty( $field['post_type'] ) ) {
 							break;
 						}
-						$shortcode_ui_args['attrs'][] = array(
-							'label'   => esc_html( $field['label'] ),
+						$shortcode_ui_args['attrs'][] = [
+							'label'   => wp_kses( $field['label'], wp_kses_allowed_html( 'post' ) ),
 							'attr'    => $field_id,
 							'type'    => 'post_select',
-							'options' => isset( $field['options'] ) ? $field['options'] : array(),
-							'query'   => array( 'post_type' => $field['post_type'] ),
-						);
+							'options' => isset( $field['options'] ) ? $field['options'] : [],
+							'query'   => [ 'post_type' => $field['post_type'] ],
+						];
 						break;
 
 					case 'taxonomyselect':
 						break;
 
-					case 'text';
+					case 'text':
 					default:
-						$shortcode_ui_args['attrs'][] = array(
+						$shortcode_ui_args['attrs'][] = [
 							'label' => $field['label'],
 							'attr'  => $field_id,
 							'type'  => 'text',
 							'value' => ! empty( $field['std'] ) ? $field['std'] : '',
-							//'encode' => true,
-							'meta'  => array(
+							// 'encode' => true,
+							'meta'  => [
 								'placeholder' => $field['placeholder'],
-							),
-						);
+							],
+						];
 						break;
 				}
 			}
@@ -434,7 +445,7 @@ abstract class PUM_Shortcode {
 	 * @return array
 	 */
 	public function post_types() {
-		return array( 'post', 'page', 'popup' );
+		return [ 'post', 'page', 'popup' ];
 	}
 
 	/**
@@ -443,10 +454,10 @@ abstract class PUM_Shortcode {
 	 * @return array
 	 */
 	public function inner_content_labels() {
-		return array(
+		return [
 			'label'       => $this->label(),
 			'description' => $this->description(),
-		);
+		];
 	}
 
 	/**
@@ -454,25 +465,28 @@ abstract class PUM_Shortcode {
 	 *
 	 * @return array
 	 */
-	public function _fields() {
+	public function _fields() { // phpcs:ignore PSR2.Methods.MethodDeclaration.Underscore
 		$fields = apply_filters( 'pum_shortcode_fields', $this->fields(), $this );
 
 		if ( $this->has_content ) {
 			$inner_content_labels = $this->inner_content_labels();
 
-			$fields[ $this->inner_content_section ]['main']['_inner_content'] = array(
+			$fields[ $this->inner_content_section ]['main']['_inner_content'] = [
 				'label'    => $inner_content_labels['label'],
 				'desc'     => $inner_content_labels['description'],
 				'section'  => $this->inner_content_section,
 				'type'     => 'textarea',
 				'priority' => $this->inner_content_priority,
-			);
+			];
 		}
 
-		$fields = PUM_Admin_Helpers::parse_tab_fields( $fields, array(
-			'has_subtabs' => $this->version >= 2,
-			'name'        => 'attrs[%s]',
-		) );
+		$fields = PUM_Admin_Helpers::parse_tab_fields(
+			$fields,
+			[
+				'has_subtabs' => $this->version >= 2,
+				'name'        => 'attrs[%s]',
+			]
+		);
 
 		if ( $this->version < 2 ) {
 			foreach ( $fields as $tab_id => $tab_fields ) {
@@ -480,8 +494,8 @@ abstract class PUM_Shortcode {
 					/**
 					 * Apply field compatibility fixes for shortcodes still on v1.
 					 */
-					if ( ! empty( $field['type'] ) && in_array( $field['type'], array( 'select', 'postselect', 'radio', 'multicheck' ) ) ) {
-						$fields[ $tab_id ][ $field_id ]['options'] = ! empty( $field['options'] ) ? array_flip( $field['options'] ) : array();
+					if ( ! empty( $field['type'] ) && in_array( $field['type'], [ 'select', 'postselect', 'radio', 'multicheck' ], true ) ) {
+						$fields[ $tab_id ][ $field_id ]['options'] = ! empty( $field['options'] ) ? array_flip( $field['options'] ) : [];
 					}
 				}
 			}
@@ -501,5 +515,4 @@ abstract class PUM_Shortcode {
 	 * @return array
 	 */
 	abstract public function fields();
-
 }

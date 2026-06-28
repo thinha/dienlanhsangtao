@@ -44,7 +44,51 @@ abstract class Settings {
     private $options = array();
 
     private $defaults_json_path;
-    
+    private static ?bool $table_exists = null;
+
+    public static function storage_table(): string {
+        global $wpdb;
+        return $wpdb->prefix . 'pys_options';
+    }
+
+    private static function table_exists(): bool {
+        if (self::$table_exists !== null) {
+            return self::$table_exists;
+        }
+
+        // Try object cache first
+        $cached = wp_cache_get('pys_options_table_exists', 'pys');
+        if ($cached !== false) {
+            return self::$table_exists = (bool) $cached;
+        }
+
+        global $wpdb;
+        $table  = self::storage_table();
+        $exists = (bool) $wpdb->get_var(
+            $wpdb->prepare("SHOW TABLES LIKE %s", $table)
+        );
+        if (!$exists) {
+            // Create table
+            $charset_collate = $wpdb->get_charset_collate();
+            $sql = "CREATE TABLE IF NOT EXISTS $table (
+            id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+            option_name VARCHAR(191) NOT NULL,
+            option_value LONGTEXT NOT NULL,
+            migrated TINYINT(1) NOT NULL DEFAULT 1,
+            updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            PRIMARY KEY  (id),
+            UNIQUE KEY option_name (option_name)
+        ) $charset_collate;";
+            require_once ABSPATH . 'wp-admin/includes/upgrade.php';
+            dbDelta($sql);
+
+            // After dbDelta table exists
+            $exists = true;
+        }
+        // Cache for 12h; adjust as you like
+        wp_cache_set('pys_options_table_exists', $exists, 'pys', 12 * HOUR_IN_SECONDS);
+        return self::$table_exists = $exists;
+    }
     /**
      * Constructor
      *
@@ -66,25 +110,61 @@ abstract class Settings {
 	 * @param string $defaults Path to options defaults file
 	 */
     public function locateOptions( $fields, $defaults ) {
-        
+
         $this->loadJSON( $fields, false );
         $this->loadJSON( $defaults, true );
-        
-        $this->defaults_json_path = $defaults;
 
+        $this->defaults_json_path = $defaults;
+        self::table_exists();
     }
-    
+
     public function resetToDefaults() {
-	
-	    if ( ! file_exists( $this->defaults_json_path ) ) {
-		    return;
-	    }
-	
-	    $content = file_get_contents( $this->defaults_json_path );
-	    $values  = json_decode( $content, true );
-     
-	    $this->updateOptions( $values );
-	    
+
+        if ( ! file_exists( $this->defaults_json_path ) ) {
+            return;
+        }
+
+        // List of fields to preserve
+        $preserve_fields = [
+            'enabled',
+
+            'tracking_id',
+            'enable_server_container',
+            'server_container_url',
+            'transport_url',
+
+            'pixel_id',
+            'use_server_api',
+            'advanced_matching_enabled',
+            'server_access_api_token',
+            'use_server_api',
+            'verify_meta_tag',
+
+            'gtm_id',
+            'gtm_just_data_layer',
+        ];
+
+        // Load current values
+        $this->maybeLoad();
+        $current_values = $this->values;
+
+        // Preserve the values of specified fields
+        $preserved_values = [];
+        foreach ( $preserve_fields as $field ) {
+            if ( isset( $current_values[ $field ] ) ) {
+                $preserved_values[ $field ] = $current_values[ $field ];
+            }
+        }
+
+        // Load default values
+        $content = file_get_contents( $this->defaults_json_path );
+        $default_values = json_decode( $content, true );
+
+        // Merge preserved values with default values
+        $merged_values = array_merge( $default_values, $preserved_values );
+
+        // Update options with the merged values
+        $this->updateOptions( $merged_values );
     }
 
 	/**
@@ -112,8 +192,81 @@ abstract class Settings {
 			$this->options = $values;
 		}
 
-	}
-	
+    }
+
+    /**
+     * Reading from a new table.
+     *
+     * @return array|null  array of values or null if there is no entry
+     */
+    private function pys_get_from_storage( $option_key ) {
+        global $wpdb;
+        if (!self::$table_exists) {
+            return null;
+        }
+
+        $table = self::storage_table();
+
+        // Safe to query the table
+        $row = $wpdb->get_row(
+            $wpdb->prepare(
+                "SELECT option_value FROM $table WHERE option_name = %s LIMIT 1",
+                $option_key
+            ),
+            ARRAY_A
+        );
+
+        if ( ! $row ) {
+            return null;
+        }
+
+        $val = maybe_unserialize( $row['option_value'] );
+        return is_array( $val ) ? $val : [];
+    }
+    /**
+     * Write to a new table.
+     *
+     * @return bool
+     */
+    private function pys_set_in_storage( $option_key, $value, $migrated = 1 ) {
+        global $wpdb;
+        if (!self::$table_exists) {
+            return null;
+        }
+        $table = self::storage_table();
+        $data  = [
+            'option_value' => maybe_serialize( $value ),
+            'migrated'     => (int) $migrated,
+        ];
+        $format = [ '%s', '%d' ];
+        // Checking if there is a record
+        $exists = $wpdb->get_var(
+            $wpdb->prepare(
+                "SELECT COUNT(*) FROM {$table} WHERE option_name = %s",
+                $option_key
+            )
+        );
+
+        if ( $exists ) {
+            // We are updating
+            $result = $wpdb->update(
+                $table,
+                $data,
+                [ 'option_name' => $option_key ],
+                $format,
+                [ '%s' ]
+            );
+        } else {
+            // Insert a new one
+            $result = $wpdb->insert(
+                $table,
+                array_merge( [ 'option_name' => $option_key ], $data ),
+                array_merge( [ '%s' ], $format )
+            );
+        }
+
+        return $result !== false;
+    }
 	/**
 	 * Add new option field
 	 *
@@ -165,14 +318,28 @@ abstract class Settings {
 	 */
 	private function maybeLoad( $force = false ) {
 
-		if ( $force || empty( $this->values ) ) {
-			$this->values = get_option( $this->option_key, null );
-		}
+        if ( ! $force && ! empty( $this->values ) ) {
+            return; // already loaded
+        }
 
-		// if there are no settings defined, use default values
-		if ( ! is_array( $this->values ) ) {
-			$this->values = $this->defaults;
-		}
+        // 1) Let's try a new table
+        $stored = $this->pys_get_from_storage( $this->option_key );
+        if ( is_array( $stored ) ) {
+            $this->values = wp_parse_args( $stored, $this->defaults );
+            return;
+        }
+
+        // 2) Let's try the old way (wp_options)
+        $legacy = get_option( $this->option_key, null );
+        if ( is_array( $legacy ) ) {
+            // Migration to a new table
+            $this->pys_set_in_storage( $this->option_key, $legacy, 1 );
+            $this->values = wp_parse_args( $legacy, $this->defaults );
+            return;
+        }
+
+        // 3) If nothing, we take defaults
+        $this->values = $this->defaults;
 
 	}
 
@@ -189,25 +356,33 @@ abstract class Settings {
 
         $this->maybeLoad();
 
-	    if ( is_array( $values ) ) {
-		    $form_data = $values;
-	    } else {
-		    $form_data = isset( $_POST['pys'][ $this->slug ] ) ? $_POST['pys'][ $this->slug ] : array();
-	    }
-
-	    // save posted fields
-        foreach ( $form_data as $key => $value ) {
-
-	        if ( isset( $this->options[ $key ] ) ) {
-		        $this->values[ $key ] = $this->sanitize_form_field( $key, $value );
-	        }
-
+        if ( is_array( $values ) ) {
+            $form_data = $values;
+        } else {
+            if ( isset( $_POST['pys'][ $this->slug ] ) && is_array( $_POST['pys'][ $this->slug ] ) ) {
+                $form_data = $_POST['pys'][ $this->slug ];
+            } else {
+                $form_data = [];
+            }
         }
 
-        update_option( $this->option_key, $this->values );
+        // We only apply valid fields and sanitize them
+        foreach ( $form_data as $key => $value ) {
+            if ( isset( $this->options[ $key ] ) ) {
+                $this->values[ $key ] = $this->sanitize_form_field( $key, $value );
+            }
+        }
+
+        // We write to a new table (primarily)
+        $written = $this->pys_set_in_storage( $this->option_key, $this->values, 1 );
+
+        if ( ! $written ) {
+            // Fallback: if we couldn't write to our table, we save it in wp_options
+            update_option( $this->option_key, $this->values, false );
+        }
 
     }
-	
+
 	/**
 	 * Sanitize form field
 	 *
@@ -245,32 +420,74 @@ abstract class Settings {
 	 * @param bool   $hidden
      * @param bool   $empty
 	 */
-    public function render_text_input( $key, $placeholder = '', $disabled = false, $hidden = false, $empty = false) {
+	public function render_text_input( $key, $placeholder = '', $disabled = false, $hidden = false, $empty = false, $type = 'standard' ) {
+
+		$attr_name = "pys[$this->slug][$key]";
+		$attr_id = 'pys_' . $this->slug . '_' . $key;
+		$attr_value = $empty == false ? $this->getOption( $key ) : "";
+
+		$classes = array(
+			"input-$type"
+		);
+
+		if ( $hidden ) {
+			$classes[] = 'form-control-hidden';
+		}
+
+		$classes = implode( ' ', $classes );
+		?>
+
+        <input <?php disabled( $disabled ); ?>
+                type="text"
+                name="<?php echo esc_attr( $attr_name ); ?>"
+                id="<?php echo esc_attr( $attr_id ); ?>"
+                value="<?php echo esc_attr( $attr_value ); ?>"
+                placeholder="<?php echo esc_attr( $placeholder ); ?>"
+                class="<?php echo esc_attr( $classes ); ?>">
+		<?php
+	}
+
+    /**
+     * Output text input
+     *
+     * @param        $key
+     * @param string $placeholder
+     * @param bool   $disabled
+     * @param bool   $hidden
+     * @param bool   $empty
+     */
+    public function render_password_input( $key, $placeholder = '', $disabled = false, $hidden = false, $empty = false, $type = 'standard' ) {
 
         $attr_name = "pys[$this->slug][$key]";
         $attr_id = 'pys_' . $this->slug . '_' . $key;
         $attr_value = $empty == false ? $this->getOption( $key ) : "";
-		
-		$classes = array( 'form-control' );
-		
-		if( $hidden ) {
-		    $classes[] = 'form-control-hidden';
+
+        $classes = array(
+            "input-$type",
+            "passwordInput"
+        );
+
+        if ( $hidden ) {
+            $classes[] = 'form-control-hidden';
         }
-		
-		$classes = implode( ' ', $classes );
-		
-		?>
 
-        <input <?php disabled( $disabled ); ?> type="text" name="<?php esc_attr_e( $attr_name ); ?>"
-                                               id="<?php esc_attr_e( $attr_id ); ?>"
-                                               value="<?php esc_attr_e( $attr_value ); ?>"
-                                               placeholder="<?php esc_attr_e( $placeholder ); ?>"
-                                               class="<?php esc_attr_e( $classes ); ?>">
+        $classes = implode( ' ', $classes );
+        ?>
+        <div class="password-block">
+            <input <?php disabled( $disabled ); ?>
+                    type="text"
+                    name="<?php echo esc_attr( $attr_name ); ?>"
+                    id="<?php echo esc_attr( $attr_id ); ?>"
+                    value="<?php echo esc_attr( $attr_value ); ?>"
+                    placeholder="<?php echo esc_attr( $placeholder ); ?>"
+                    class="<?php echo esc_attr( $classes ); ?>"
+                    style="display:none;"
+            >
 
-		<?php
-
-	}
-	
+            <input type="text" class="maskedInput input-<?php echo esc_attr( $type ); ?>" data-value="<?php echo esc_attr( $attr_value ); ?>">
+        </div>
+        <?php
+    }
 	/**
 	 * Output pixel ID input (text)
 	 *
@@ -279,23 +496,23 @@ abstract class Settings {
 	 * @param int    $index
 	 */
 	public function render_pixel_id( $key, $placeholder = '', $index = 0 ) {
-        
+
         $attr_name = "pys[$this->slug][$key][]";
         $attr_id = 'pys_' . $this->slug . '_' . $key . '_' . $index;
-		
+
 		$values = (array) $this->getOption( $key );
 		$attr_value = isset( $values[ $index ] ) ? $values[ $index ] : null;
-  
+
 		?>
-        
-        <input type="text" name="<?php esc_attr_e( $attr_name ); ?>"
-               id="<?php esc_attr_e( $attr_id ); ?>"
-               value="<?php esc_attr_e( $attr_value ); ?>"
-               placeholder="<?php esc_attr_e( $placeholder ); ?>"
-               class="form-control">
-		
+
+        <input type="text" name="<?php echo esc_attr( $attr_name ); ?>"
+               id="<?php echo esc_attr( $attr_id ); ?>"
+               value="<?php echo esc_attr( $attr_value ); ?>"
+               placeholder="<?php echo esc_attr( $placeholder ); ?>"
+               class="input-standard">
+
 		<?php
-		
+
 	}
 
     /**
@@ -305,7 +522,7 @@ abstract class Settings {
      * @param string $placeholder
      * @param int    $index
      */
-    public function render_text_area_array_item( $key, $placeholder = '', $index = 0 ) {
+    public function render_text_area_array_item( $key, $placeholder = '', $index = 0, $enabled = true ) {
 
         $attr_name = "pys[$this->slug][$key][]";
         $attr_id = 'pys_' . $this->slug . '_' . $key . '_' . $index;
@@ -315,10 +532,10 @@ abstract class Settings {
 
         ?>
 
-        <textarea type="text" name="<?php esc_attr_e( $attr_name ); ?>"
-                  id="<?php esc_attr_e( $attr_id ); ?>"
-                  placeholder="<?php esc_attr_e( $placeholder ); ?>"
-                  class="form-control"><?php esc_attr_e( $attr_value ); ?></textarea>
+        <textarea type="text" name="<?php echo esc_attr( $attr_name ); ?>"
+                  id="<?php echo esc_attr( $attr_id ); ?>"
+                  placeholder="<?php echo esc_attr( $placeholder ); ?>"
+                  class="textarea-standard" <?= !$enabled ? 'disabled' : ''; ?>><?php echo esc_attr( $attr_value ); ?></textarea>
 
         <?php
     }
@@ -340,14 +557,14 @@ abstract class Settings {
 
         ?>
 
-        <input type=<?=$hidden? "hidden": "text"?> name="<?php esc_attr_e( $attr_name ); ?>"
-               id="<?php esc_attr_e( $attr_id ); ?>"
-               value="<?php esc_attr_e( $attr_value ); ?>"
-               placeholder="<?php esc_attr_e( $placeholder ); ?>"
-               class="form-control">
+        <input type=<?=$hidden? "hidden": "text"?> name="<?php echo esc_attr( $attr_name ); ?>"
+               id="<?php echo esc_attr( $attr_id ); ?>"
+               value="<?php echo esc_attr( $attr_value ); ?>"
+               placeholder="<?php echo esc_attr( $placeholder ); ?>"
+               class="input-standard">
         <?php
     }
-	
+
 	/**
 	 * Output text area input
 	 *
@@ -372,15 +589,15 @@ abstract class Settings {
 
 		?>
 
-        <textarea <?php disabled( $disabled ); ?> name="<?php esc_attr_e( $attr_name ); ?>"
-              id="<?php esc_attr_e( $attr_id ); ?>" rows="5"
-              placeholder="<?php esc_attr_e( $placeholder ); ?>"
-              class="<?php esc_attr_e( $classes ); ?>"><?php esc_html_e( $attr_value ); ?></textarea>
+        <textarea <?php disabled( $disabled ); ?> name="<?php echo esc_attr( $attr_name ); ?>"
+              id="<?php echo esc_attr( $attr_id ); ?>" rows="5"
+              placeholder="<?php echo esc_attr( $placeholder ); ?>"
+              class="<?php echo esc_attr( $classes ); ?>"><?php esc_html_e( $attr_value ); ?></textarea>
 
 		<?php
 
 	}
-	
+
 	/**
 	 * Output checkbox input stylized as switcher
 	 *
@@ -388,82 +605,93 @@ abstract class Settings {
 	 * @param bool $collapse
 	 * @param bool $disabled
 	 */
-    public function render_switcher_input( $key, $collapse = false, $disabled = false ) {
-     
-	    $attr_name = "pys[$this->slug][$key]";
-	    $attr_id = 'pys_' . $this->slug . '_' . $key;
-	    $attr_value = $this->getOption( $key );
-	    
-	    $classes = array( 'custom-switch' );
-	    
-	    if ( $collapse ) {
-	        $classes[] = 'collapse-control';
-        }
-        
+    public function render_switcher_input( $key, $collapse = false, $disabled = false, $default = false, $type = 'secondary') {
+        $attr_name = "pys[$this->slug][$key]";
+        $attr_id = 'pys_' . $this->slug . '_' . $key;
+        $attr_value = $this->getOption( $key );
+        $input_class = $label_class = '';
+
+		$classes = array( "$type-switch" );
+
+		if ( $collapse ) {
+			$classes[] = 'collapse-control';
+		}
+
         if ( $disabled ) {
-	        $classes[] = 'disabled';
+            $classes[] = 'disabled';
             $attr_name = "";
-            $attr_value = false;
+            $attr_value = $default;
         }
-        
-        $classes = implode( ' ', $classes );
 
-        ?>
-
-        <div class="<?php esc_attr_e( $classes ); ?>">
-
-            <?php if ( ! $disabled ) : ?>
-                <input type="hidden" name="<?php esc_attr_e( $attr_name ); ?>" value="0">
-            <?php endif; ?>
-            
-            <?php if ( $collapse ) : ?>
-                <input type="checkbox" name="<?php esc_attr_e( $attr_name ); ?>" value="1" <?php disabled( $disabled,
-		            true ); ?> <?php checked( $attr_value, true ); ?>
-                       id="<?php esc_attr_e( $attr_id ); ?>"
-                       class="custom-switch-input"
-                       data-target="pys_<?php esc_attr_e( $this->slug ); ?>_<?php esc_attr_e( $key ); ?>_panel">
-            <?php else : ?>
-                <input type="checkbox" name="<?php esc_attr_e( $attr_name ); ?>" value="1" <?php disabled( $disabled,
-		            true ); ?> <?php checked( $attr_value, true ); ?> id="<?php esc_attr_e( $attr_id ); ?>"
-                       class="custom-switch-input">
-            <?php endif; ?>
-            
-            <label class="custom-switch-btn" for="<?php esc_attr_e( $attr_id ); ?>"></label>
-        </div>
-
-        <?php
-
-    }
-
-	public function render_switcher_input_array( $key, $index = 0) {
-
-		$attr_name  = "pys[$this->slug][$key][]";
-		$attr_id = 'pys_' . $this->slug . '_' . $key."_".$index;
-		$attr_values = (array)$this->getOption( $key );
-		$value = "index_".$index;
-		$valueIndex = array_search($value,$attr_values);
-
-		$classes = array( 'custom-switch' );
+		if ( $type === 'primary' ) {
+			$input_class = 'primary-switch-input';
+			$label_class = 'primary-switch-btn';
+		} elseif ( $type === 'secondary' ) {
+			$input_class = 'custom-switch-input';
+			$label_class = 'custom-switch-btn';
+		}
 
 		$classes = implode( ' ', $classes );
 
 		?>
 
-        <div class="<?php esc_attr_e( $classes ); ?>">
-            <input type="checkbox"
-                   name="<?php esc_attr_e( $attr_name ); ?>"
-                   value="<?=$value?>"
-				<?=$valueIndex !== false ? "checked" : "" ?>
-                   id="<?php esc_attr_e( $attr_id ); ?>"
-                   class="custom-switch-input">
+        <div class="<?php echo esc_attr( $classes ); ?>">
 
-            <label class="custom-switch-btn" for="<?php esc_attr_e( $attr_id ); ?>"></label>
+			<?php if ( !$disabled ) : ?>
+                <input type="hidden" name="<?php echo esc_attr( $attr_name ); ?>" value="0">
+			<?php endif; ?>
+
+			<?php if ( $collapse ) : ?>
+                <input type="checkbox" name="<?php echo esc_attr( $attr_name ); ?>"
+                       value="1" <?php disabled( $disabled, true ); ?> <?php checked( $attr_value, true ); ?>
+                       id="<?php echo esc_attr( $attr_id ); ?>"
+                       class="<?php echo esc_attr( $input_class ); ?>"
+                       data-target="pys_<?php echo esc_attr( $this->slug ); ?>_<?php echo esc_attr( $key ); ?>_panel">
+			<?php else : ?>
+                <input type="checkbox" name="<?php echo esc_attr( $attr_name ); ?>"
+                       value="1" <?php disabled( $disabled, true ); ?> <?php checked( $attr_value, true ); ?>
+                       id="<?php echo esc_attr( $attr_id ); ?>"
+                       class="<?php echo esc_attr( $input_class ); ?>">
+			<?php endif; ?>
+
+            <label class="<?php echo esc_attr( $label_class ); ?>" for="<?php echo esc_attr( $attr_id ); ?>">
+				<?php if ( $type === 'primary' ) : ?>
+                    <span class="<?php echo esc_attr( $label_class ); ?>-slider"></span>
+				<?php endif; ?>
+            </label>
+        </div>
+
+		<?php
+	}
+
+	public function render_switcher_input_array( $key, $index = 0 ) {
+
+		$attr_name = "pys[$this->slug][$key][]";
+		$attr_id = 'pys_' . $this->slug . '_' . $key . "_" . $index;
+		$attr_values = (array) $this->getOption( $key );
+		$value = "index_" . $index;
+		$valueIndex = array_search( $value, $attr_values );
+
+		$classes = array( 'secondary-switch' );
+		$classes = implode( ' ', $classes );
+
+		?>
+
+        <div class="<?php echo esc_attr( $classes ); ?>">
+            <input type="checkbox"
+                   name="<?php echo esc_attr( $attr_name ); ?>"
+                   value="<?php echo esc_attr( $value ); ?>"
+				<?php echo $valueIndex !== false ? "checked" : "" ?>
+                   id="<?php echo esc_attr( $attr_id ); ?>"
+                   class="custom-switch-input <?php echo esc_attr( $key ); ?>">
+
+            <label class="custom-switch-btn" for="<?php echo esc_attr( $attr_id ); ?>"></label>
         </div>
 
 		<?php
 
 	}
-	
+
 	/**
 	 * Output checkbox input
 	 *
@@ -472,25 +700,82 @@ abstract class Settings {
 	 * @param bool $disabled
 	 */
 	public function render_checkbox_input( $key, $label, $disabled = false ) {
-  
-		$attr_name  = "pys[$this->slug][$key]";
+
+		$attr_name = "pys[$this->slug][$key]";
 		$attr_value = $this->getOption( $key );
-		
+		$id = $key . "_" . random_int( 1, 1000000 );
+
 		?>
 
-        <label class="custom-control custom-checkbox">
-            <input type="hidden" name="<?php esc_attr_e( $attr_name ); ?>" value="0">
-            <input type="checkbox" name="<?php esc_attr_e( $attr_name ); ?>" value="1"
-                   class="custom-control-input" <?php disabled( $disabled, true ); ?> <?php checked( $attr_value,
-                true ); ?>>
-            <span class="custom-control-indicator"></span>
-            <span class="custom-control-description"><?php echo wp_kses_post( $label ); ?></span>
-        </label>
-        
+        <div class="small-checkbox">
+            <input type="hidden" name="<?php echo esc_attr( $attr_name ); ?>" value="0">
+            <input type="checkbox" id="<?php echo esc_attr( $id ); ?>" name="<?php echo esc_attr( $attr_name ); ?>"
+                   value="1"
+                   class="small-control-input" <?php disabled( $disabled, true ); ?> <?php checked( $attr_value, true ); ?>>
+            <label class="small-control small-checkbox-label" for="<?php echo esc_attr( $id ); ?>">
+                <span class="small-control-indicator"><i class="icon-check"></i></span>
+                <span class="small-control-description"><?php echo wp_kses_post( $label ); ?></span>
+            </label>
+        </div>
+
 		<?php
-		
 	}
-	
+
+	/**
+	 * Output checkbox input array
+	 *
+	 * @param      $key
+	 * @param      $label
+	 * @param bool $disabled
+	 */
+	public function render_checkbox_input_revert_array( $key, $label, $value, $disabled = false ) {
+
+		$attr_name = "pys[$this->slug][$key][]";
+		$attr_values = (array) $this->getOption( $key );
+
+		$isChecked = !in_array( $value, $attr_values );
+		$id = $key . "_" . random_int( 1, 1000000 );
+		?>
+        <div class="small-checkbox">
+            <input type="hidden" name="<?php echo esc_attr( $attr_name ); ?>" value="<?= $value ?>">
+            <input type="checkbox" id="<?php echo esc_attr( $id ); ?>" name="<?php echo esc_attr( $attr_name ); ?>"
+                   value="<?= "revert_" . $value ?>"
+                   class="small-control-input" <?php disabled( $disabled, true ); ?>
+				<?php echo $isChecked ? "checked" : "" ?>>
+            <label class="small-control small-checkbox-label" for="<?php echo esc_attr( $id ); ?>">
+                <span class="small-control-indicator"><i class="icon-check"></i></span>
+                <span class="small-control-description"><?php echo wp_kses_post( $label ); ?></span>
+            </label>
+        </div>
+
+		<?php
+	}
+
+
+    /**
+     * @throws RandomException
+     */
+    public function render_checkbox_blacklist_input_array($key, $label, $value, $disabled = false ) {
+
+		$attr_name = "pys[$this->slug][$key][]";
+		$attr_values = (array) $this->getOption( $key );
+        $id = $key . "_" . random_int( 1, 1000000 );
+		$isChecked = in_array($value, $attr_values, true);
+		?>
+        <div class="small-checkbox">
+            <input type="checkbox" id="<?php echo esc_attr( $id ); ?>" name="<?php echo esc_attr( $attr_name ); ?>"
+                   value="<?= $value ?>"
+                   class="small-control-input" <?php disabled( $disabled, true ); ?> <?php echo $isChecked ? "checked" : "" ?>>
+            <label class="small-control small-checkbox-label" for="<?php echo esc_attr( $id ); ?>">
+                <span class="small-control-indicator"><i class="icon-check"></i></span>
+                <span class="small-control-description"><?php echo wp_kses_post( $label ); ?></span>
+            </label>
+        </div>
+
+		<?php
+
+	}
+
 	/**
 	 * Output radio input
 	 *
@@ -498,55 +783,97 @@ abstract class Settings {
 	 * @param      $value
 	 * @param      $label
 	 * @param bool $disabled
+	 * @param bool $with_pro_badge
 	 */
 	public function render_radio_input( $key, $value, $label, $disabled = false, $with_pro_badge = false ) {
-  
+
+		$id = $key . "_" . rand( 1, 1000000 );
 		$attr_name = "pys[$this->slug][$key]";
- 
 		?>
 
-        <label class="custom-control custom-radio">
-            <input type="radio" name="<?php esc_attr_e( $attr_name ); ?>" <?php disabled( $disabled, true ); ?>
-                   class="custom-control-input" <?php checked( $this->getOption( $key ), $value ); ?>
-                   value="<?php esc_attr_e( $value ); ?>">
-            <span class="custom-control-indicator"></span>
-            <span class="custom-control-description"><?php echo wp_kses_post( $label ); ?></span>
-	        <?php if ( $with_pro_badge ) {
-		        renderCogBadge();
-	        } ?>
-        </label>
+        <div class="radio-standard">
+            <input type="radio"
+                   name="<?php echo esc_attr( $attr_name ); ?>"
+				<?php disabled( $disabled, true ); ?>
+                   class="custom-control-input"
+                   id="<?php echo esc_attr( $id ); ?>"
+				<?php checked( $this->getOption( $key ), $value ); ?>
+                   value="<?php echo esc_attr( $value ); ?>">
+            <label class="standard-control radio-checkbox-label" for="<?php echo esc_attr( $id ); ?>">
+                <span class="standard-control-indicator"></span>
+                <span class="standard-control-description"><?php echo wp_kses_post( $label ); ?></span>
+				<?php if ( $with_pro_badge ) {
+					renderCogBadge();
+				} ?>
+            </label>
+        </div>
 
 		<?php
-		
+
 	}
-	
+
 	/**
 	 * Output number input
 	 *
-	 * @param  string    $key
-	 * @param string $placeholder
+	 * @param      $key
+	 * @param null $placeholder
 	 * @param bool $disabled
 	 */
-	public function render_number_input( $key, $placeholder = '', $disabled = false,$max = null,$min = 0 ) {
+	public function render_number_input( $key, $placeholder = '', $disabled = false, $max = null, $min = 0, $step = 'any', $suffix = '' ) {
 
-		$attr_name  = "pys[$this->slug][$key]";
-		$attr_id    = 'pys_' . $this->slug . '_' . $key;
+		$attr_name = "pys[$this->slug][$key]";
+		$attr_id = 'pys_' . $this->slug . '_' . $key;
 		$attr_value = $this->getOption( $key );
-  
-		?>
 
-        <input <?php disabled( $disabled ); ?> type="number" name="<?php esc_attr_e( $attr_name ); ?>"
-                                               id="<?php esc_attr_e( $attr_id ); ?>"
-                                               value="<?php esc_attr_e( $attr_value ); ?>"
-                                               placeholder="<?php esc_attr_e( $placeholder ); ?>"
-											   min="<?=$min?>" class="form-control"
-												<?php if($max != null) : ?> max="<?=$max?>" <?php endif;?>
-		>
-		
+		?>
+        <div class="input-number-wrapper">
+            <button class="decrease"><i class="icon-minus"></i></button>
+            <input <?php disabled( $disabled ); ?> type="number" name="<?php echo esc_attr( $attr_name ); ?>"
+                                                   id="<?php echo esc_attr( $attr_id ); ?>"
+                                                   value="<?php echo esc_attr( $attr_value ); ?>"
+                                                   placeholder="<?php echo esc_attr( $placeholder ); ?>"
+                                                   min="<?= $min ?>"
+				<?php if ( $max != null ) : ?> max="<?= $max ?>" <?php endif; ?>
+                                                   step="<?= $step ?>"
+            >
+            <button class="increase"><i class="icon-plus"></i></button>
+        </div>
+
 		<?php
-		
+
 	}
-	
+
+
+    /**
+     * Output number input
+     *
+     * @param      $key
+     * @param null $placeholder
+     * @param bool $disabled
+     */
+    public function render_number_input_percent( $key, $placeholder = '', $disabled = false, $max = null, $min = 0, $step = 'any' ) {
+
+        $attr_name = "pys[$this->slug][$key]";
+        $attr_id = 'pys_' . $this->slug . '_' . $key;
+        $attr_value = $this->getOption( $key );
+
+        ?>
+        <div class="input-number-wrapper input-number-wrapper-percent">
+            <button class="decrease"><i class="icon-minus"></i></button>
+            <input <?php disabled( $disabled ); ?> type="number" name="<?php echo esc_attr( $attr_name ); ?>"
+                                                   id="<?php echo esc_attr( $attr_id ); ?>"
+                                                   value="<?php echo esc_attr( $attr_value ); ?>"
+                                                   placeholder="<?php echo esc_attr( $placeholder ); ?>"
+                                                   min="<?= $min ?>"
+                <?php if ( $max != null ) : ?> max="<?= $max ?>" <?php endif; ?>
+                                                   step="<?= $step ?>"
+            >
+            <button class="increase"><i class="icon-plus"></i></button>
+        </div>
+
+        <?php
+
+    }
 	/**
 	 * Output select input
 	 *
@@ -556,39 +883,39 @@ abstract class Settings {
 	 * @param null $visibility_target
 	 * @param null $visibility_value
 	 */
-	public function render_select_input( $key, $options, $disabled = false, $visibility_target = null,
-        $visibility_value = null ) {
-  
+	public function render_select_input( $key, $options, $disabled = false, $visibility_target = null, $visibility_value = null, $searchable = false ) {
+
 		$attr_name = "pys[$this->slug][$key]";
 		$attr_id = 'pys_' . $this->slug . '_' . $key;
-		
-		$classes = array( 'form-control-sm' );
-		
+
+		$classes = array( 'select-standard' );
+
 		if ( $visibility_target ) {
-		    $classes[] = 'controls-visibility';
+			$classes[] = 'controls-visibility';
+		}
+        if($searchable){
+            $classes[] = 'pys-pysselect2';
         }
-		
+
 		$classes = implode( ' ', $classes );
-		
+
 		?>
+            <div class="select-standard-wrap">
+                <select class="<?php echo esc_attr( $classes ); ?>" id="<?php echo esc_attr( $attr_id ); ?>"
+                        name="<?php echo esc_attr( $attr_name ); ?>" <?php disabled( $disabled ); ?>
+                        data-target="<?php echo esc_attr( $visibility_target ); ?>"
+                        data-value="<?php echo esc_attr( $visibility_value ); ?>" autocomplete="off">
 
-        <select class="<?php esc_attr_e( $classes ); ?>" id="<?php esc_attr_e( $attr_id ); ?>"
-                name="<?php esc_attr_e( $attr_name ); ?>" <?php disabled( $disabled ); ?>
-                data-target="<?php esc_attr_e( $visibility_target ); ?>"
-                data-value="<?php esc_attr_e( $visibility_value ); ?>" autocomplete="off">
+                    <option value="" disabled selected>Please, select...</option>
 
-            <option value="" disabled selected>Please, select...</option>
-			
-			<?php foreach ( $options as $option_key => $option_value ) : ?>
-                <option value="<?php echo esc_attr( $option_key ); ?>" <?php selected( $option_key,
-					esc_attr( $this->getOption( $key ) ) ); ?> <?php disabled( $option_key,
-					'disabled' ); ?>><?php echo esc_attr( $option_value ); ?></option>
-			<?php endforeach; ?>
-        </select>
-		
+                    <?php foreach ( $options as $option_key => $option_value ) : ?>
+                        <option value="<?php echo esc_attr( $option_key ); ?>" <?php selected( $option_key, esc_attr( $this->getOption( $key ) ) ); ?> <?php disabled( $option_key, 'disabled' ); ?>><?php echo esc_attr( $option_value ); ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
 		<?php
 	}
-	
+
 	/**
 	 * Output multi select input
 	 *
@@ -596,66 +923,73 @@ abstract class Settings {
 	 * @param      $values
 	 * @param bool $disabled
 	 */
-	public function render_multi_select_input( $key, $values, $disabled = false ) {
+    public function render_multi_select_input( $key, $values, $disabled = false, $placeholder = "" ) {
 
-		$attr_name = "pys[$this->slug][$key][]";
-		$attr_id = 'pys_' . $this->slug . '_' . $key;
-		
-		$selected  = $this->getOption( $key );
-		
-		?>
+        $attr_name = "pys[$this->slug][$key][]";
+        $attr_id = 'pys_' . $this->slug . '_' . $key;
 
-        <input type="hidden" name="<?php esc_attr_e( $attr_name ); ?>" value="">
-        <select class="form-control pys-pysselect2" name="<?php esc_attr_e( $attr_name ); ?>"
-                id="<?php esc_attr_e( $attr_id ); ?>" <?php disabled( $disabled ); ?> style="width: 100%;"
+        $selected = $this->getOption( $key ) ? $this->getOption( $key ) : array();
+        ?>
+
+        <input type="hidden" name="<?php echo esc_attr( $attr_name ); ?>" value="">
+        <select class="pys-pysselect2"
+                data-placeholder="<?= $placeholder ?>"
+                name="<?php echo esc_attr( $attr_name ); ?>"
+                id="<?php echo esc_attr( $attr_id ); ?>" <?php disabled( $disabled ); ?> style="width: 100%;"
                 multiple>
-			
-			<?php foreach ( $values as $option_key => $option_value ) : ?>
+            <?php foreach ( $values as $option_key => $option_value ) : ?>
                 <option value="<?php echo esc_attr( $option_key ); ?>"
-					<?php selected( in_array( $option_key, $selected ) ); ?>
-					<?php disabled( $option_key, 'disabled' ); ?>
+                    <?php selected( in_array( $option_key, $selected ) ); ?>
+                    <?php disabled( $option_key, 'disabled' ); ?>
                 >
-					<?php echo esc_attr( $option_value ); ?>
+                    <?php echo esc_attr( $option_value ); ?>
                 </option>
-			<?php endforeach; ?>
+            <?php endforeach; ?>
 
         </select>
-		
-		<?php
-	}
-	
+
+        <?php
+    }
+
 	/**
 	 * Output tags select input
 	 *
 	 * @param      $key
 	 * @param bool $disabled
 	 */
-	public function render_tags_select_input( $key, $disabled = false ) {
+    public function render_tags_select_input( $key, $disabled = false ,$default = []) {
 
-		$attr_name = "pys[$this->slug][$key][]";
-		$attr_id = 'pys_' . $this->slug . '_' . $key;
+        $attr_name = "pys[$this->slug][$key][]";
+        $attr_id = 'pys_' . $this->slug . '_' . $key;
 
-		$tags = $this->getOption( $key );
-		$tags = is_array( $tags ) ? array_filter( $tags ) : array();
+        $tags = $this->getOption( $key );
+        $tags = is_array( $tags ) ? array_filter( $tags ) : array();
+        $tags = array_diff($tags,$default);
+        ?>
 
-		?>
-
-        <input type="hidden" name="<?php esc_attr_e( $attr_name ); ?>" value="">
-        <select class="form-control pys-tags-pysselect2" name="<?php esc_attr_e( $attr_name ); ?>"
-                id="<?php esc_attr_e( $attr_id ); ?>" <?php disabled( $disabled ); ?> style="width: 100%;"
+        <input type="hidden" name="<?php echo esc_attr( $attr_name ); ?>" value="">
+        <select class="pys-tags-pysselect2" name="<?php echo esc_attr( $attr_name ); ?>"
+                id="<?php echo esc_attr( $attr_id ); ?>" <?php disabled( $disabled ); ?> style="width: 100%;"
                 multiple>
 
-			<?php foreach ( $tags as $tag ) : ?>
-                <option value="<?php echo esc_attr( $tag ); ?>" selected>
-					<?php echo esc_attr( $tag ); ?>
+            <?php foreach ( $default as $tag ) : ?>
+                <option  value="<?php echo esc_attr( $tag ); ?>" selected locked="locked">
+                    <?php echo esc_attr( $tag ); ?>
                 </option>
-			<?php endforeach; ?>
+            <?php endforeach; ?>
+
+            <?php foreach ( $tags as $tag ) : ?>
+                <option value="<?php echo esc_attr( $tag ); ?>" selected>
+                    <?php echo esc_attr( $tag ); ?>
+                </option>
+            <?php endforeach; ?>
 
         </select>
 
-		<?php
-	}
-	
+        <?php
+    }
+
+
 	/**
 	 * Sanitize text field value
 	 *
@@ -670,7 +1004,7 @@ abstract class Settings {
 		return wp_kses_post( trim( stripslashes( $value ) ) );
 
 	}
-	
+
 	/**
 	 * Sanitize textarea field value
 	 *
@@ -685,7 +1019,7 @@ abstract class Settings {
 		return trim( stripslashes( $value ) );
 
 	}
-	
+
 	/**
 	 * Sanitize number field value
 	 *
@@ -696,7 +1030,7 @@ abstract class Settings {
 	public function sanitize_number_field( $value ) {
 		return (int) $value;
 	}
-	
+
 	/**
 	 * Sanitize checkbox field value
 	 *
@@ -713,7 +1047,7 @@ abstract class Settings {
 		}
 
 	}
-	
+
 	/**
 	 * Sanitize radio field value
 	 *
@@ -724,7 +1058,7 @@ abstract class Settings {
 	public function sanitize_radio_field( $value ) {
 		return ! is_null( $value ) ? trim( stripslashes( $value ) ) : null;
 	}
-	
+
 	/**
 	 * Sanitize select field value
 	 *
@@ -735,13 +1069,13 @@ abstract class Settings {
 	 * @return array|string
 	 */
 	public function sanitize_select_field( $value ) {
-		
+
 		$value = is_null( $value ) ? '' : $value;
-		
+
 		return deepSanitizeTextField( stripslashes( $value ) );
-		
+
 	}
-	
+
 	/**
 	 * Sanitize tags select value
 	 *
@@ -754,7 +1088,7 @@ abstract class Settings {
 	public function sanitize_multi_select_field( $value ) {
 		return is_array( $value ) ? array_map( 'PixelYourSite\deepSanitizeTextField', $value ) : array();
 	}
-	
+
 	/**
 	 * @param $value
 	 *
@@ -763,7 +1097,7 @@ abstract class Settings {
 	public function sanitize_tag_select_field( $value ) {
 		return is_array( $value ) ? array_map( 'PixelYourSite\deepSanitizeTextField', $value ) : array();
     }
-	
+
 	/**
 	 * Sanitize array field value
 	 *
@@ -772,22 +1106,22 @@ abstract class Settings {
 	 * @return array
 	 */
 	public function sanitize_array_field( $values ) {
-		
+
 		$values = is_array( $values ) ? $values : array();
 		$sanitized = array();
-		
+
 		foreach ( $values as $key => $value ) {
-			
+
 			$new_value = $this->sanitize_text_field( $value );
-			
+
 			if ( ! empty( $new_value ) && ! in_array( $new_value, $sanitized ) ) {
 				$sanitized[ $key ] = $new_value;
 			}
-			
+
 		}
-		
+
 		return $sanitized;
-		
+
 	}
 
 /**
@@ -841,20 +1175,23 @@ abstract class Settings {
 	}
     public function render_checkbox_input_array( $key, $label, $index = 0, $disabled = false ) {
 
-        $attr_name  = "pys[$this->slug][$key][]";
-        $attr_values = (array)$this->getOption( $key );
-        $value = "index_".$index;
-        $valueIndex = array_search($value,$attr_values);
-
+        $attr_name = "pys[$this->slug][$key][]";
+        $attr_values = (array) $this->getOption( $key );
+        $value = "index_" . $index;
+        $valueIndex = array_search( $value, $attr_values );
+        $id = $key . "_" . rand( 1, 1000000 );
         ?>
-
-        <label class="custom-control custom-checkbox">
-            <input type="checkbox" name="<?php esc_attr_e( $attr_name ); ?>" value="<?=$value?>"
-                   class="custom-control-input" <?php disabled( $disabled, true ); ?>
-                <?=$valueIndex !== false ? "checked" : "" ?>>
-            <span class="custom-control-indicator"></span>
-            <span class="custom-control-description"><?php echo wp_kses_post( $label ); ?></span>
-        </label>
+        <div class="small-checkbox">
+            <input type="hidden" name="<?php echo esc_attr( $attr_name ); ?>" value="0">
+            <input type="checkbox" id="<?php echo esc_attr( $id ); ?>" name="<?php echo esc_attr( $attr_name ); ?>"
+                   value="<?= $value ?>"
+                   class="small-control-input" <?php disabled( $disabled, true ); ?>
+                    <?php echo $valueIndex !== false ? "checked" : "" ?>>
+            <label class="small-control small-checkbox-label" for="<?php echo esc_attr( $id ); ?>">
+                <span class="small-control-indicator"><i class="icon-check"></i></span>
+                <span class="small-control-description"><?php echo wp_kses_post( $label ); ?></span>
+            </label>
+        </div>
 
         <?php
 
@@ -942,14 +1279,14 @@ abstract class Settings {
 
         ?>
 
-        <select class="form-control form-control-sm" disabled="disabled" autocomplete="off" style="<?php esc_attr_e( $attr_width ); ?>">
+        <select class="form-control form-control-sm" disabled="disabled" autocomplete="off" style="<?php echo esc_attr( $attr_width ); ?>">
             <option value="" disabled selected><?php esc_html_e( $value ); ?></option>
         </select>
 
         <?php
     }
 
-    function renderProBadge( $url = null,$label = "Pro Feature" ) {
+    function renderProBadge( $url = null,$label = "PRO Feature" ) {
 
         if ( ! $url ) {
             $url = 'https://www.pixelyoursite.com/';
@@ -957,8 +1294,12 @@ abstract class Settings {
 
         $url = untrailingslashit( $url ) . '/?utm_source=pys-free-plugin&utm_medium=pro-badge&utm_campaign=pro-feature';
 
-        echo '&nbsp;<a href="' . esc_url( $url ) . '" target="_blank" class="badge badge-pill badge-pro">'.$label.' <i class="fa fa-external-link" aria-hidden="true"></i></a>';
+        echo '&nbsp;<a href="' . esc_url( $url ) . '" target="_blank" class="badge badge-pill badge-pro">'.$label.'</a>';
     }
+
+
+
+
     public function convertTimeToSeconds($timeValue = 24, $type = 'hours')
     {
         switch ($type){
@@ -973,5 +1314,76 @@ abstract class Settings {
                 break;
         }
         return $time;
+    }
+
+
+    public function renderValueOptionsBlock($context, $useEnable = true, $usePopover = true, $useBorder = true, $title = '', $disabled = false) {
+        if ( empty( $context ) ) {
+            return;
+        }
+
+        if ( empty( $title ) ) {
+            $title = 'Value parameter settings:';
+        }
+
+        $prefixes = [
+            'purchase',
+            'initiate_checkout',
+            'complete_registration'
+        ];
+        if ( count( array_filter( $prefixes, function ( $prefix ) use ( $context ) {
+                return strpos( $context, $prefix ) !== false;
+            } ) ) > 0 ) {
+            $priceText = 'Order\'s total';
+            $percentText = 'Percent of the order\'s total';
+        } else {
+            $priceText = 'Product price';
+            $percentText = 'Percent of the product price';
+        }
+        ?>
+        <div class="gap-24">
+            <div class="d-flex align-items-center">
+                <?php if ( !is_null( $this->getOption( $context . '_value_enabled' ) ) || $useEnable ) : ?>
+                    <div class="mr-16">
+                        <?php !$disabled ? $this->render_switcher_input( $context . '_value_enabled', true ) : renderDummySwitcher(); ?>
+                    </div>
+                <?php endif; ?>
+                <h4 class="secondary_heading"><?php echo esc_html( $title ); ?></h4>
+                <?php
+                if ( $usePopover ) {
+                    renderPopoverButton( $context . '_event_value' );
+                } ?>
+            </div>
+
+            <div <?php if ( !is_null( $this->getOption( $context . '_value_enabled' ) ) && !$disabled) {
+                renderCollapseTargetAttributes( $context . '_value_enabled', PYS() );
+            } ?>>
+                <div class="radio-inputs-wrap-big woo-settings-block">
+                    <?php !$disabled ? $this->render_radio_input( $context . '_value_option', 'price', $priceText ) : renderDummyRadioInput($priceText); ?>
+
+                    <?php if ( strpos( $context, 'edd_' ) !== 0 ) { ?>
+                        <?php if ( !isPixelCogActive() ) { ?>
+                            <?php !$disabled ? $this->render_radio_input( $context . '_value_option', 'cog', 'Price minus Cost of Goods.', true, true ): renderDummyRadioInput('Price minus Cost of Goods'); ?>
+                        <?php } else { ?>
+                            <?php !$disabled ? $this->render_radio_input( $context . '_value_option', 'cog', 'Price minus Cost of Goods', false ): renderDummyRadioInput('Price minus Cost of Goods'); ?>
+                        <?php } ?>
+                    <?php } ?>
+
+                    <div class="grid-table">
+                        <?php renderDummyRadioInput( $percentText ); ?>
+                        <?php renderDummyNumberInput( 0 ); ?>
+
+                        <?php !$disabled ? $this->render_radio_input( $context . '_value_option', 'global', 'Use global value' ) : renderDummyRadioInput('Use global value') ; ?>
+                        <?php !$disabled ? $this->render_number_input( $context . '_value_global' ) : renderDummyNumberInput(0); ?>
+                    </div>
+                </div>
+
+                <?php if ( $useBorder ) : ?>
+                    <div class="line mt-24"></div>
+                <?php endif; ?>
+            </div>
+        </div>
+
+        <?php
     }
 }

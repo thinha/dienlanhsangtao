@@ -2,6 +2,7 @@
 
 if ( ! class_exists( 'acf_field' ) ) :
 
+	#[\AllowDynamicProperties]
 	class acf_field {
 
 		// vars

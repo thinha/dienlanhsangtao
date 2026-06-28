@@ -306,8 +306,6 @@ class TestTab extends PageAbstract {
 	 */
 	public function process_post( $data ) {
 
-		$this->check_admin_referer();
-
 		$this->post_data = $data;
 
 		$connection = easy_wp_smtp()->get_connections_manager()->get_primary_connection();
@@ -649,7 +647,7 @@ https://easywpsmtp.com/lite-upgrade/
 Unlock These Powerful Features with Easy WP SMTP Pro:
 
 + Log all emails and export your email logs in different formats
-+ Send emails with Amazon SES / Microsoft 365
++ Send emails with Amazon SES / Microsoft 365/ Zoho Mail
 + Track opens and clicks to measure engagement
 + Resend failed emails from your email log
 + Create email reports and graphs
@@ -1066,7 +1064,7 @@ CEO, SendLayer';
 								],
 							]
 						),
-						'https://app.mailgun.com/app/sending/domains'
+						'https://app.mailgun.com/mg/sending/domains'
 					),
 					esc_html__( 'Verify your domain Region is correct.', 'easy-wp-smtp' ),
 				],
@@ -1318,6 +1316,49 @@ CEO, SendLayer';
 				],
 				'steps'       => [
 					esc_html__( 'Please make sure you entered an accurate Sender Name in Easy WP SMTP plugin settings.', 'easy-wp-smtp' ),
+				],
+			],
+			// [sparkpost] - Forbidden.
+			[
+				'mailer'      => 'sparkpost',
+				'errors'      => [
+					[ 'Forbidden' ],
+				],
+				'title'       => esc_html__( 'SparkPost API failed.', 'easy-wp-smtp' ),
+				'description' => [
+					esc_html__( 'Typically this error occurs because there is an issue with your SparkPost settings, in many cases an incorrect API key.', 'easy-wp-smtp' ),
+				],
+				'steps'       => [
+					sprintf(
+						wp_kses( /* translators: %1$s - SparkPost API Keys area URL, %1$s - SparkPost EU API Keys area URL. */
+							__( 'Go to your <a href="%1$s" target="_blank" rel="noopener noreferrer">SparkPost account</a> or <a href="%2$s" target="_blank" rel="noopener noreferrer">SparkPost EU account</a> and verify that your API key is correct.', 'easy-wp-smtp' ),
+							[
+								'a' => [
+									'href'   => [],
+									'rel'    => [],
+									'target' => [],
+								],
+								'b' => [],
+							]
+						),
+						'https://app.sparkpost.com/account/api-keys',
+						'https://app.eu.sparkpost.com/account/api-keys'
+					),
+					esc_html__( 'Verify that your API key has "Transmissions: Read/Write" permission.', 'easy-wp-smtp' ),
+				],
+			],
+			// [sparkpost] - Unauthorized.
+			[
+				'mailer'      => 'sparkpost',
+				'errors'      => [
+					[ 'Unauthorized' ],
+				],
+				'title'       => esc_html__( 'SparkPost API failed.', 'easy-wp-smtp' ),
+				'description' => [
+					esc_html__( 'Typically this error occurs because there is an issue with your SparkPost settings, in many cases an incorrect region.', 'easy-wp-smtp' ),
+				],
+				'steps'       => [
+					esc_html__( 'Verify that your SparkPost account region is selected in Easy WP SMTP settings.', 'easy-wp-smtp' ),
 				],
 			],
 		];
@@ -1589,7 +1630,7 @@ CEO, SendLayer';
 		}
 		?>
 		<?php if ( $this->domain_checker->is_supported_mailer() ) : ?>
-			<div class="notice-warning notice-inline">
+			<div class="notice-warning notice-inline easy-wp-smtp-notice">
 				<p><?php esc_html_e( 'The test email might have sent, but its deliverability should be improved.', 'easy-wp-smtp' ); ?></p>
 			</div>
 		<?php endif; ?>

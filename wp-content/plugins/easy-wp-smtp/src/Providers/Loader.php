@@ -5,7 +5,6 @@ namespace EasyWPSMTP\Providers;
 use EasyWPSMTP\ConnectionInterface;
 use EasyWPSMTP\Debug;
 use EasyWPSMTP\MailCatcherInterface;
-use EasyWPSMTP\Options;
 
 /**
  * Class Loader.
@@ -22,17 +21,25 @@ class Loader {
 	 * @var array
 	 */
 	protected $providers = [
-		'sendlayer'  => 'EasyWPSMTP\Providers\Sendlayer\\',
-		'amazonses'  => 'EasyWPSMTP\Providers\AmazonSES\\',
-		'gmail'      => 'EasyWPSMTP\Providers\Gmail\\',
-		'mailgun'    => 'EasyWPSMTP\Providers\Mailgun\\',
-		'outlook'    => 'EasyWPSMTP\Providers\Outlook\\',
-		'sendgrid'   => 'EasyWPSMTP\Providers\Sendgrid\\',
-		'postmark'   => 'EasyWPSMTP\Providers\Postmark\\',
-		'sendinblue' => 'EasyWPSMTP\Providers\Sendinblue\\',
-		'smtpcom'    => 'EasyWPSMTP\Providers\SMTPcom\\',
-		'smtp'       => 'EasyWPSMTP\Providers\SMTP\\',
-		'mail'       => 'EasyWPSMTP\Providers\Mail\\',
+		'sendlayer'    => 'EasyWPSMTP\Providers\Sendlayer\\',
+		'amazonses'    => 'EasyWPSMTP\Providers\AmazonSES\\',
+		'sendinblue'   => 'EasyWPSMTP\Providers\Sendinblue\\',
+		'elasticemail' => 'EasyWPSMTP\Providers\ElasticEmail\\',
+		'gmail'        => 'EasyWPSMTP\Providers\Gmail\\',
+		'mailgun'      => 'EasyWPSMTP\Providers\Mailgun\\',
+		'mailjet'      => 'EasyWPSMTP\Providers\Mailjet\\',
+		'mailersend'   => 'EasyWPSMTP\Providers\MailerSend\\',
+		'mandrill'     => 'EasyWPSMTP\Providers\Mandrill\\',
+		'outlook'      => 'EasyWPSMTP\Providers\Outlook\\',
+		'postmark'     => 'EasyWPSMTP\Providers\Postmark\\',
+		'resend'       => 'EasyWPSMTP\Providers\Resend\\',
+		'sendgrid'     => 'EasyWPSMTP\Providers\Sendgrid\\',
+		'smtpcom'      => 'EasyWPSMTP\Providers\SMTPcom\\',
+		'smtp2go'      => 'EasyWPSMTP\Providers\SMTP2GO\\',
+		'sparkpost'    => 'EasyWPSMTP\Providers\SparkPost\\',
+		'zoho'         => 'EasyWPSMTP\Providers\Zoho\\',
+		'smtp'         => 'EasyWPSMTP\Providers\SMTP\\',
+		'mail'         => 'EasyWPSMTP\Providers\Mail\\',
 	];
 
 	/**
@@ -95,7 +102,7 @@ class Loader {
 	 */
 	public function get_options_all( $connection = null ) {
 
-		$options = array();
+		$options = [];
 
 		foreach ( $this->get_providers() as $provider => $path ) {
 
@@ -150,17 +157,17 @@ class Loader {
 	/**
 	 * Get a generic entity based on the request.
 	 *
-	 * @uses  \ReflectionClass
-	 *
 	 * @since 2.0.0
 	 *
 	 * @param string $provider
 	 * @param string $request
-	 * @param array  $args     Entity instantiation arguments.
+	 * @param array  $args Entity instantiation arguments.
 	 *
 	 * @return OptionsAbstract|MailerAbstract|AuthAbstract|null
+	 * @uses  \ReflectionClass
+	 *
 	 */
-	protected function get_entity( $provider, $request, $args = []  ) {
+	protected function get_entity( $provider, $request, $args = [] ) {
 
 		$provider = sanitize_key( $provider );
 		$request  = sanitize_text_field( $request );
@@ -178,13 +185,12 @@ class Loader {
 				$class  = $path . $request;
 				$entity = new $class( ...$args );
 			}
-		}
-		catch ( \Exception $e ) {
+		} catch ( \Exception $e ) {
 			Debug::set( "There was a problem while retrieving {$request} for {$provider}: {$e->getMessage()}" );
 			$entity = null;
 		}
 
-		return apply_filters( 'easy_wp_smtp_providers_loader_get_entity', $entity, $provider, $request );
+		return apply_filters( 'easy_wp_smtp_providers_loader_get_entity', $entity, $provider, $request, $args );
 	}
 
 	/**

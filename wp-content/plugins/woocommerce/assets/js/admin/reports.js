@@ -10,7 +10,7 @@ jQuery(function( $ ) {
 	var prev_data_index = null;
 	var prev_series_index = null;
 
-	$( '.chart-placeholder' ).bind( 'plothover', function ( event, pos, item ) {
+	$( '.chart-placeholder' ).on( 'plothover', function ( event, pos, item ) {
 		if ( item ) {
 			if ( prev_data_index !== item.dataIndex || prev_series_index !== item.seriesIndex ) {
 				prev_data_index   = item.dataIndex;
@@ -48,60 +48,6 @@ jQuery(function( $ ) {
 			$( '.chart-tooltip' ).remove();
 			prev_data_index = null;
 		}
-	});
-
-	$( '.wc_sparkline.bars' ).each( function() {
-		var chart_data = $( this ).data( 'sparkline' );
-
-		var options = {
-			grid: {
-				show: false
-			}
-		};
-
-		// main series
-		var series = [{
-			data: chart_data,
-			color: $( this ).data( 'color' ),
-			bars: {
-				fillColor: $( this ).data( 'color' ),
-				fill: true,
-				show: true,
-				lineWidth: 1,
-				barWidth: $( this ).data( 'barwidth' ),
-				align: 'center'
-			},
-			shadowSize: 0
-		}];
-
-		// draw the sparkline
-		$.plot( $( this ), series, options );
-	});
-
-	$( '.wc_sparkline.lines' ).each( function() {
-		var chart_data = $( this ).data( 'sparkline' );
-
-		var options = {
-			grid: {
-				show: false
-			}
-		};
-
-		// main series
-		var series = [{
-			data: chart_data,
-			color: $( this ).data( 'color' ),
-			lines: {
-				fill: false,
-				show: true,
-				lineWidth: 1,
-				align: 'center'
-			},
-			shadowSize: 0
-		}];
-
-		// draw the sparkline
-		$.plot( $( this ), series, options );
 	});
 
 	var dates = $( '.range_datepicker' ).datepicker({

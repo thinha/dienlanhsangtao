@@ -6,6 +6,14 @@
  * @version 2.5.0
  */
 
+use Automattic\WooCommerce\Internal\Admin\Marketplace;
+use Automattic\WooCommerce\Internal\Admin\Orders\COTRedirectionController;
+use Automattic\WooCommerce\Internal\Admin\Orders\PageController as Custom_Orders_PageController;
+use Automattic\WooCommerce\Internal\Admin\Logging\PageController as LoggingPageController;
+use Automattic\WooCommerce\Internal\Admin\Logging\FileV2\{ FileListTable, SearchListTable };
+use Automattic\WooCommerce\Internal\DataStores\Orders\CustomOrdersTableController;
+use Automattic\WooCommerce\Utilities\FeaturesUtil;
+
 defined( 'ABSPATH' ) || exit;
 
 if ( class_exists( 'WC_Admin_Menus', false ) ) {
@@ -18,21 +26,41 @@ if ( class_exists( 'WC_Admin_Menus', false ) ) {
 class WC_Admin_Menus {
 
 	/**
+	 * The CSS classes used to hide the submenu items in navigation.
+	 *
+	 * @var string
+	 */
+	const HIDE_CSS_CLASS = 'hide-if-js';
+
+	/**
 	 * Hook in tabs.
 	 */
 	public function __construct() {
 		// Add menus.
+		add_action( 'admin_menu', array( $this, 'menu_highlight' ) );
+		add_action( 'admin_menu', array( $this, 'menu_order_count' ) );
+		add_action( 'admin_menu', array( $this, 'maybe_add_new_product_management_experience' ) );
 		add_action( 'admin_menu', array( $this, 'admin_menu' ), 9 );
+		add_action( 'admin_menu', array( $this, 'orders_menu' ), 9 );
 		add_action( 'admin_menu', array( $this, 'reports_menu' ), 20 );
 		add_action( 'admin_menu', array( $this, 'settings_menu' ), 50 );
 		add_action( 'admin_menu', array( $this, 'status_menu' ), 60 );
 
+		/**
+		 * Controls whether we add a submenu item for the WooCommerce Addons page.
+		 * Woo Express uses this filter.
+		 *
+		 * @since 8.2.1
+		 *
+		 * @param bool $show_addons_page If the addons page should be included.
+		 */
 		if ( apply_filters( 'woocommerce_show_addons_page', true ) ) {
-			add_action( 'admin_menu', array( $this, 'addons_menu' ), 70 );
+			$container = wc_get_container();
+			$container->get( Marketplace::class );
+
+			add_action( 'admin_menu', array( $this, 'addons_my_subscriptions' ), 70 );
 		}
 
-		add_action( 'admin_head', array( $this, 'menu_highlight' ) );
-		add_action( 'admin_head', array( $this, 'menu_order_count' ) );
 		add_filter( 'menu_order', array( $this, 'menu_order' ) );
 		add_filter( 'custom_menu_order', array( $this, 'custom_menu_order' ) );
 		add_filter( 'set-screen-option', array( $this, 'set_screen_option' ), 10, 3 );
@@ -51,41 +79,71 @@ class WC_Admin_Menus {
 
 	/**
 	 * Add menu items.
+	 *
+	 * @return void
 	 */
 	public function admin_menu() {
-		global $menu;
+		global $menu, $admin_page_hooks;
 
-		if ( current_user_can( 'edit_others_shop_orders' ) ) {
+		$woocommerce_icon = 'data:image/svg+xml;base64,PHN2ZyB2ZXJzaW9uPSIxLjEiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgdmlld0JveD0iMCAwIDg1LjkgNDcuNiI+CjxwYXRoIGZpbGw9IiNhMmFhYjIiIGQ9Ik03Ny40LDAuMWMtNC4zLDAtNy4xLDEuNC05LjYsNi4xTDU2LjQsMjcuN1Y4LjZjMC01LjctMi43LTguNS03LjctOC41cy03LjEsMS43LTkuNiw2LjVMMjguMywyNy43VjguOAoJYzAtNi4xLTIuNS04LjctOC42LTguN0g3LjNDMi42LDAuMSwwLDIuMywwLDYuM3MyLjUsNi40LDcuMSw2LjRoNS4xdjI0LjFjMCw2LjgsNC42LDEwLjgsMTEuMiwxMC44UzMzLDQ1LDM2LjMsMzguOWw3LjItMTMuNXYxMS40CgljMCw2LjcsNC40LDEwLjgsMTEuMSwxMC44czkuMi0yLjMsMTMtOC43bDE2LjYtMjhjMy42LTYuMSwxLjEtMTAuOC02LjktMTAuOEM3Ny4zLDAuMSw3Ny4zLDAuMSw3Ny40LDAuMXoiLz4KPC9zdmc+Cg==';
+
+		if ( self::can_view_woocommerce_menu_item() ) {
 			$menu[] = array( '', 'read', 'separator-woocommerce', '', 'wp-menu-separator woocommerce' ); // WPCS: override ok.
 		}
 
-		add_menu_page( __( 'WooCommerce', 'woocommerce' ), __( 'WooCommerce', 'woocommerce' ), 'edit_others_shop_orders', 'woocommerce', null, null, '55.5' );
+		add_menu_page( __( 'WooCommerce', 'woocommerce' ), __( 'WooCommerce', 'woocommerce' ), 'edit_others_shop_orders', 'woocommerce', null, $woocommerce_icon, '55.5' );
+
+		// Work around https://github.com/woocommerce/woocommerce/issues/35677 (and related https://core.trac.wordpress.org/ticket/18857).
+		// Translating the menu item breaks screen IDs and page hooks, so we force the hookname to be untranslated.
+		$admin_page_hooks['woocommerce'] = 'woocommerce'; // phpcs:ignore WordPress.WP.GlobalVariablesOverride.Prohibited
 
 		add_submenu_page( 'edit.php?post_type=product', __( 'Attributes', 'woocommerce' ), __( 'Attributes', 'woocommerce' ), 'manage_product_terms', 'product_attributes', array( $this, 'attributes_page' ) );
 	}
 
 	/**
 	 * Add menu item.
+	 *
+	 * @return void
 	 */
 	public function reports_menu() {
-		if ( current_user_can( 'edit_others_shop_orders' ) ) {
+		if ( self::can_view_woocommerce_menu_item() ) {
 			add_submenu_page( 'woocommerce', __( 'Reports', 'woocommerce' ), __( 'Reports', 'woocommerce' ), 'view_woocommerce_reports', 'wc-reports', array( $this, 'reports_page' ) );
 		} else {
-			add_menu_page( __( 'Sales reports', 'woocommerce' ), __( 'Sales reports', 'woocommerce' ), 'view_woocommerce_reports', 'wc-reports', array( $this, 'reports_page' ), null, '55.6' );
+			add_menu_page( __( 'Sales reports', 'woocommerce' ), __( 'Sales reports', 'woocommerce' ), 'view_woocommerce_reports', 'wc-reports', array( $this, 'reports_page' ), 'dashicons-chart-bar', '55.6' );
 		}
 	}
 
 	/**
 	 * Add menu item.
+	 *
+	 * @return void
 	 */
 	public function settings_menu() {
-		$settings_page = add_submenu_page( 'woocommerce', __( 'WooCommerce settings', 'woocommerce' ), __( 'Settings', 'woocommerce' ), 'manage_woocommerce', 'wc-settings', array( $this, 'settings_page' ) );
+		$settings_page = add_submenu_page(
+			'woocommerce',
+			__( 'WooCommerce settings', 'woocommerce' ),
+			__( 'Settings', 'woocommerce' ),
+			'manage_woocommerce',
+			'wc-settings',
+			array( $this, 'settings_page' )
+		);
 
 		add_action( 'load-' . $settings_page, array( $this, 'settings_page_init' ) );
 	}
 
 	/**
+	 * Check if the user can access the top-level WooCommerce item.
+	 *
+	 * @return bool
+	 */
+	public static function can_view_woocommerce_menu_item() {
+		return current_user_can( 'edit_others_shop_orders' );
+	}
+
+	/**
 	 * Loads gateways and shipping methods into memory for use within settings.
+	 *
+	 * @return void
 	 */
 	public function settings_page_init() {
 		WC()->payment_gateways();
@@ -115,7 +173,7 @@ class WC_Admin_Menus {
 		global $current_tab, $current_section;
 
 		// We should only save on the settings page.
-		if ( ! is_admin() || ! isset( $_GET['page'] ) || 'wc-settings' !== $_GET['page'] ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+		if ( ! is_wc_admin_settings_page() ) {
 			return;
 		}
 
@@ -136,15 +194,34 @@ class WC_Admin_Menus {
 
 	/**
 	 * Add menu item.
+	 *
+	 * @return void
 	 */
 	public function status_menu() {
-		add_submenu_page( 'woocommerce', __( 'WooCommerce status', 'woocommerce' ), __( 'Status', 'woocommerce' ), 'manage_woocommerce', 'wc-status', array( $this, 'status_page' ) );
+		$status_page = add_submenu_page( 'woocommerce', __( 'WooCommerce status', 'woocommerce' ), __( 'Status', 'woocommerce' ), 'manage_woocommerce', 'wc-status', array( $this, 'status_page' ) );
+
+		add_action(
+			'load-' . $status_page,
+			function () {
+				if ( 'logs' === filter_input( INPUT_GET, 'tab' ) ) {
+					// Initialize the logging page controller early so that it can hook into things.
+					wc_get_container()->get( LoggingPageController::class );
+				}
+			},
+			1
+		);
 	}
 
 	/**
 	 * Addons menu item.
+	 *
+	 * @deprecated 10.5.0 The marketplace feature is now always enabled. Use the Extensions menu instead.
+	 *
+	 * @return void
 	 */
 	public function addons_menu() {
+		wc_deprecated_function( __METHOD__, '10.5.0' );
+
 		$count_html = WC_Helper_Updater::get_updates_count_html();
 		/* translators: %s: extensions count */
 		$menu_title = sprintf( __( 'Extensions %s', 'woocommerce' ), $count_html );
@@ -152,7 +229,21 @@ class WC_Admin_Menus {
 	}
 
 	/**
+	 * Registers the wc-addons page within the WooCommerce menu.
+	 * Temporary measure till we convert the whole page to React.
+	 *
+	 * @return void
+	 */
+	public function addons_my_subscriptions() {
+		add_submenu_page( 'woocommerce', __( 'WooCommerce extensions', 'woocommerce' ), null, 'manage_woocommerce', 'wc-addons', array( $this, 'addons_page' ) );
+		// Temporarily hide the submenu item we've just added.
+		$this->hide_submenu_page( 'woocommerce', 'wc-addons' );
+	}
+
+	/**
 	 * Highlights the correct top level admin menu item for post type add screens.
+	 *
+	 * @return void
 	 */
 	public function menu_highlight() {
 		global $parent_file, $submenu_file, $post_type;
@@ -174,6 +265,8 @@ class WC_Admin_Menus {
 
 	/**
 	 * Adds the order processing count to the menu.
+	 *
+	 * @return void
 	 */
 	public function menu_order_count() {
 		global $submenu;
@@ -189,7 +282,7 @@ class WC_Admin_Menus {
 				if ( $order_count ) {
 					foreach ( $submenu['woocommerce'] as $key => $menu_item ) {
 						if ( 0 === strpos( $menu_item[0], _x( 'Orders', 'Admin menu name', 'woocommerce' ) ) ) {
-							$submenu['woocommerce'][ $key ][0] .= ' <span class="awaiting-mod update-plugins count-' . esc_attr( $order_count ) . '"><span class="processing-count">' . number_format_i18n( $order_count ) . '</span></span>'; // phpcs:ignore WordPress.WP.GlobalVariablesOverride.Prohibited
+							$submenu['woocommerce'][ $key ][0] .= ' <span class="menu-counter count-' . esc_attr( $order_count ) . '"><span class="processing-count">' . number_format_i18n( $order_count ) . '</span></span>'; // phpcs:ignore WordPress.WP.GlobalVariablesOverride.Prohibited
 							break;
 						}
 					}
@@ -239,7 +332,7 @@ class WC_Admin_Menus {
 	 * @return bool
 	 */
 	public function custom_menu_order( $enabled ) {
-		return $enabled || current_user_can( 'edit_others_shop_orders' );
+		return $enabled || self::can_view_woocommerce_menu_item();
 	}
 
 	/**
@@ -248,9 +341,18 @@ class WC_Admin_Menus {
 	 * @param bool|int $status Screen option value. Default false to skip.
 	 * @param string   $option The option name.
 	 * @param int      $value  The number of rows to use.
+	 * @return bool|int
 	 */
 	public function set_screen_option( $status, $option, $value ) {
-		if ( in_array( $option, array( 'woocommerce_keys_per_page', 'woocommerce_webhooks_per_page' ), true ) ) {
+		$screen_options = array(
+			'woocommerce_keys_per_page',
+			'woocommerce_webhooks_per_page',
+			FileListTable::PER_PAGE_USER_OPTION_KEY,
+			SearchListTable::PER_PAGE_USER_OPTION_KEY,
+			WC_Admin_Log_Table_List::PER_PAGE_USER_OPTION_KEY,
+		);
+
+		if ( in_array( $option, $screen_options, true ) ) {
 			return $value;
 		}
 
@@ -259,6 +361,8 @@ class WC_Admin_Menus {
 
 	/**
 	 * Init the reports page.
+	 *
+	 * @return void
 	 */
 	public function reports_page() {
 		WC_Admin_Reports::output();
@@ -266,6 +370,8 @@ class WC_Admin_Menus {
 
 	/**
 	 * Init the settings page.
+	 *
+	 * @return void
 	 */
 	public function settings_page() {
 		WC_Admin_Settings::output();
@@ -273,6 +379,8 @@ class WC_Admin_Menus {
 
 	/**
 	 * Init the attributes page.
+	 *
+	 * @return void
 	 */
 	public function attributes_page() {
 		WC_Admin_Attributes::output();
@@ -280,6 +388,8 @@ class WC_Admin_Menus {
 
 	/**
 	 * Init the status page.
+	 *
+	 * @return void
 	 */
 	public function status_page() {
 		WC_Admin_Status::output();
@@ -287,15 +397,32 @@ class WC_Admin_Menus {
 
 	/**
 	 * Init the addons page.
+	 *
+	 * @return void
 	 */
 	public function addons_page() {
-		WC_Admin_Addons::output();
+		WC_Admin_Addons::handle_legacy_marketplace_redirects();
+	}
+
+	/**
+	 * Link to the order admin list table from the main WooCommerce menu.
+	 *
+	 * @return void
+	 */
+	public function orders_menu(): void {
+		if ( wc_get_container()->get( CustomOrdersTableController::class )->custom_orders_table_usage_is_enabled() ) {
+			wc_get_container()->get( Custom_Orders_PageController::class )->setup();
+		} else {
+			wc_get_container()->get( COTRedirectionController::class )->setup();
+		}
 	}
 
 	/**
 	 * Add custom nav meta box.
 	 *
 	 * Adapted from http://www.johnmorrisonline.com/how-to-add-a-fully-functional-custom-meta-box-to-wordpress-navigation-menus/.
+	 *
+	 * @return void
 	 */
 	public function add_nav_menu_meta_boxes() {
 		add_meta_box( 'woocommerce_endpoints_nav_link', __( 'WooCommerce endpoints', 'woocommerce' ), array( $this, 'nav_menu_links' ), 'nav-menus', 'side', 'low' );
@@ -303,6 +430,8 @@ class WC_Admin_Menus {
 
 	/**
 	 * Output menu links.
+	 *
+	 * @return void
 	 */
 	public function nav_menu_links() {
 		// Get items from account menu.
@@ -313,8 +442,10 @@ class WC_Admin_Menus {
 			unset( $endpoints['dashboard'] );
 		}
 
-		// Include missing lost password.
-		$endpoints['lost-password'] = __( 'Lost password', 'woocommerce' );
+		// Include missing lost password endpoint, if set in WooCommerce > Settings > Advanced > Account endpoints.
+		if ( ! empty( get_option( 'woocommerce_myaccount_lost_password_endpoint' ) ) ) {
+			$endpoints['lost-password'] = __( 'Lost password', 'woocommerce' );
+		}
 
 		$endpoints = apply_filters( 'woocommerce_custom_nav_menu_items', $endpoints );
 
@@ -336,14 +467,17 @@ class WC_Admin_Menus {
 							<input type="hidden" class="menu-item-classes" name="menu-item[<?php echo esc_attr( $i ); ?>][menu-item-classes]" />
 						</li>
 						<?php
-						$i--;
+						--$i;
 					endforeach;
 					?>
 				</ul>
 			</div>
-			<p class="button-controls">
+			<p class="button-controls" data-items-type="posttype-woocommerce-endpoints">
 				<span class="list-controls">
-					<a href="<?php echo esc_url( admin_url( 'nav-menus.php?page-tab=all&selectall=1#posttype-woocommerce-endpoints' ) ); ?>" class="select-all"><?php esc_html_e( 'Select all', 'woocommerce' ); ?></a>
+					<label>
+						<input type="checkbox" class="select-all" />
+						<?php esc_html_e( 'Select all', 'woocommerce' ); ?>
+					</label>
 				</span>
 				<span class="add-to-menu">
 					<button type="submit" class="button-secondary submit-add-to-menu right" value="<?php esc_attr_e( 'Add to menu', 'woocommerce' ); ?>" name="add-post-type-menu-item" id="submit-posttype-woocommerce-endpoints"><?php esc_html_e( 'Add to menu', 'woocommerce' ); ?></button>
@@ -359,6 +493,7 @@ class WC_Admin_Menus {
 	 *
 	 * @since 2.4.0
 	 * @param WP_Admin_Bar $wp_admin_bar Admin bar instance.
+	 * @return void
 	 */
 	public function admin_bar_menus( $wp_admin_bar ) {
 		if ( ! is_admin() || ! is_admin_bar_showing() ) {
@@ -384,6 +519,77 @@ class WC_Admin_Menus {
 				'href'   => wc_get_page_permalink( 'shop' ),
 			)
 		);
+	}
+
+	/**
+	 * Maybe add new management product experience.
+	 *
+	 * @return void
+	 */
+	public function maybe_add_new_product_management_experience() {
+		if ( FeaturesUtil::feature_is_enabled( 'product_block_editor' ) ) {
+			global $submenu;
+			if ( isset( $submenu['edit.php?post_type=product'][10] ) ) {
+				// Disable phpcs since we need to override submenu classes.
+				// Note that `phpcs:ignore WordPress.Variables.GlobalVariables.OverrideProhibited` does not work to disable this check.
+				// phpcs:disable
+				$submenu['edit.php?post_type=product'][10][2] = 'admin.php?page=wc-admin&path=/add-product';
+				// phps:enableWordPress.Variables.GlobalVariables.OverrideProhibited
+			}
+		}
+	}
+
+	/**
+	 * Hide the submenu page based on slug and return the item that was hidden.
+	 *
+	 * Borrowed from Jetpack's Base_Admin_Menu class.
+	 *
+	 * Instead of actually removing the submenu item, a safer approach is to hide it and filter it in the API response.
+	 * In this manner we'll avoid breaking third-party plugins depending on items that no longer exist.
+	 *
+	 * A false|array value is returned to be consistent with remove_submenu_page() function
+	 *
+	 * @param string $menu_slug The parent menu slug.
+	 * @param string $submenu_slug The submenu slug that should be hidden.
+	 * @return false|array
+	 */
+	public function hide_submenu_page( $menu_slug, $submenu_slug ) {
+		global $submenu;
+
+		if ( ! isset( $submenu[ $menu_slug ] ) ) {
+			return false;
+		}
+
+		foreach ( $submenu[ $menu_slug ] as $i => $item ) {
+			if ( $submenu_slug !== $item[2] ) {
+				continue;
+			}
+
+			$this->hide_submenu_element( $i, $menu_slug, $item );
+
+			return $item;
+		}
+
+		return false;
+	}
+
+	/**
+	 * Apply the hide-if-js CSS class to a submenu item.
+	 *
+	 * Borrowed from Jetpack's Base_Admin_Menu class.
+	 *
+	 * @param int    $index The position of a submenu item in the submenu array.
+	 * @param string $parent_slug The parent slug.
+	 * @param array  $item The submenu item.
+	 * @return void
+	 */
+	public function hide_submenu_element( $index, $parent_slug, $item ) {
+		global $submenu;
+
+		$css_classes = empty( $item[4] ) ? self::HIDE_CSS_CLASS : $item[4] . ' ' . self::HIDE_CSS_CLASS;
+
+		// phpcs:ignore WordPress.WP.GlobalVariablesOverride.Prohibited
+		$submenu [ $parent_slug ][ $index ][4] = $css_classes;
 	}
 }
 

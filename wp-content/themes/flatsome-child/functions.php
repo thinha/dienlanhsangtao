@@ -1,5 +1,12 @@
 <?php
 include_once "framework/constants.php";
+require_once get_stylesheet_directory() . '/includes/commons/setup.php';
+require_once get_stylesheet_directory() . '/includes/homepage/setup.php';
+require_once get_stylesheet_directory() . '/includes/product-list/setup.php';
+require_once get_stylesheet_directory() . '/includes/account/setup.php';
+require_once get_stylesheet_directory() . '/includes/cart/setup.php';
+require_once get_stylesheet_directory() . '/includes/checkout/setup.php';
+require_once get_stylesheet_directory() . '/includes/exam/setup.php';
 
 // Add custom Theme Functions here
 add_filter( 'woocommerce_product_tabs', 'woo_remove_product_tabs', 98 );
@@ -29,6 +36,28 @@ add_filter( 'woocommerce_product_get_rating_html', 'filter_woocommerce_product_g
 
 
 /*Sale price by - NguyenThi*/
+function dmc_get_shipping_locations() {
+	if ( function_exists( 'dmc_tmp_get_shipping_locations' ) ) {
+		return dmc_tmp_get_shipping_locations();
+	}
+
+	if ( ! defined( 'SHIPPING_FEE' ) ) {
+		return [];
+	}
+
+	$locations = [];
+
+	foreach ( SHIPPING_FEE as $name => $data ) {
+		$fee = (int) ( $data['fee'] ?? 0 );
+		$locations[ $name ] = [
+			'fee'     => $fee,
+			'fee_car' => (int) ( $data['fee_car'] ?? round( $fee * 1.5 ) ),
+		];
+	}
+
+	return $locations;
+}
+
 function flatsome_price_html($product, $is_variation = false){
     $originalSalePrice  = get_post_meta($product->get_id(), 'set_shipping_fee', true);
     if ($originalSalePrice) {
@@ -39,102 +68,106 @@ function flatsome_price_html($product, $is_variation = false){
 
     ob_start();
     if($product->is_on_sale() &&($product->is_type( 'simple' ) || $product->is_type( 'external' ) || $is_variation) ) {
-		$sale_price_customer = $product->get_sale_price();
+		$raw_sale_price      = (float) $product->get_sale_price();
+		$sale_price_customer = $raw_sale_price;
+		$voucher_discount    = 0;
+		$voucher_code        = '';
+		if ( class_exists( 'DMC_Voucher_Session' ) && class_exists( 'DMC_Voucher_Engine' ) ) {
+			$voucher_code = DMC_Voucher_Session::get_applied_code();
+			if ( $voucher_code ) {
+				$voucher = DMC_Voucher_Engine::get_voucher_by_code( $voucher_code );
+				if ( $voucher ) {
+					$valid = DMC_Voucher_Engine::validate_for_product( $voucher->ID, $product->get_id(), $raw_sale_price );
+					if ( ! is_wp_error( $valid ) ) {
+						$voucher_discount    = DMC_Voucher_Engine::calculate_discount( $voucher->ID, $raw_sale_price, 1 );
+						$sale_price_customer = max( 0, $raw_sale_price - $voucher_discount );
+					}
+				}
+			}
+		}
         $regular_price = $product->get_regular_price();
         if($regular_price) {
-            $sale = round(((floatval($regular_price) - floatval($sale_price_customer)) / floatval($regular_price)) * 100);
-            $sale_amout = $regular_price - $sale_price_customer;
+            $sale        = round( ( ( floatval( $regular_price ) - floatval( $sale_price_customer ) ) / floatval( $regular_price ) ) * 100 );
+            $sale_amout  = $regular_price - $sale_price_customer;
+            $shipping_id        = 'shipping_fee_' . $product->get_id();
+            $shipping_locations = dmc_get_shipping_locations();
+            $delivery_type      = dmc_pl_get_delivery_type( $product->get_id() );
+            $delivery_label     = dmc_pl_get_delivery_type_label( $delivery_type );
+            $delivery_icon      = dmc_pl_get_delivery_icon_slug( $delivery_type );
+            $fee_key            = dmc_pl_get_delivery_fee_key( $delivery_type );
+            $fee_label_prefix   = sprintf( __( 'Phí giao hàng (%s)', 'flatsome-child' ), $delivery_label );
             ?>
-            <div>
-				<div>
-                    <span>Giá công ty:</span>
-                    <del><?php echo wc_price($regular_price); ?></del>
+            <div class="pl-price pl-price--delivery-<?php echo esc_attr( $delivery_type ); ?>" data-base-price="<?php echo esc_attr( $raw_sale_price ); ?>" data-original-base-price="<?php echo esc_attr( $raw_sale_price ); ?>" data-voucher-discount="<?php echo esc_attr( $voucher_discount ); ?>" data-voucher-code="<?php echo esc_attr( $voucher_code ); ?>" data-delivery-type="<?php echo esc_attr( $delivery_type ); ?>" data-product-id="<?php echo esc_attr( (string) $product->get_id() ); ?>" data-fee-label-prefix="<?php echo esc_attr( $fee_label_prefix ); ?>">
+                <p class="pl-price__preview-note"><?php esc_html_e( 'Ước tính cho sản phẩm này — voucher & phí ship chính thức được áp dụng tại giỏ hàng.', 'flatsome-child' ); ?></p>
+                <div class="pl-price__main">
+                    <div class="pl-price__row pl-price__row--regular">
+                        <span class="pl-price__label"><?php esc_html_e( 'Giá niêm yết', 'flatsome-child' ); ?></span>
+                        <del class="pl-price__value pl-price__value--old"><?php echo wc_price( $regular_price ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></del>
+                    </div>
+                    <div class="pl-price__row pl-price__row--sale">
+                        <span class="pl-price__label"><?php esc_html_e( 'Giá khuyến mãi', 'flatsome-child' ); ?></span>
+                        <span class="pl-price__value pl-price__value--sale" id="pl-base-sale-price"><?php echo wc_price( $raw_sale_price ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></span>
+                    </div>
+                    <div class="pl-price__savings">
+                        <span class="pl-price__savings-label"><?php esc_html_e( 'Tiết kiệm', 'flatsome-child' ); ?></span>
+                        <span class="pl-price__savings-value"><?php echo wc_price( $sale_amout ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?> <em>(<?php echo esc_html( $sale ); ?>%)</em></span>
+                    </div>
                 </div>
-                <div>
-					<span>Giá Khuyến Mãi:</span>
-                    <?php echo wc_price($sale_price_customer); ?>
-                </div>
-                <div>
-                    <span>Tiết kiệm:</span>
-                    <span> <?php echo wc_price($sale_amout); ?> (<?php echo $sale; ?>%)</span>
-                </div>
-                <div>
-					<span>Giao hàng đến (Xe Máy)</span>
-                    <select class="js-example-basic-single" name="shipping_fee">
-                        <option value="" selected>Quý khách vui lòng chọn nơi giao hàng ?</option>
-                        <?php foreach (SHIPPING_FEE as $location => $value) : ?>
-                        <option value="<?= $value['fee'] ?? null ?>"><?= $location ?></option>
+
+                <div class="pl-price__shipping">
+                    <label class="pl-price__shipping-label" for="<?php echo esc_attr( $shipping_id ); ?>">
+                        <?php echo dmc_icon( $delivery_icon, [ 'size' => 16, 'variant' => 'blue', 'class' => 'pl-price__shipping-icon' ] ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+                        <span class="pl-price__shipping-text"><?php esc_html_e( 'Giao hàng đến', 'flatsome-child' ); ?></span>
+                        <?php dmc_pl_render_delivery_badge( $product->get_id(), 'pl-price__delivery-badge' ); ?>
+                    </label>
+                    <select class="js-example-basic-single pl-price__shipping-select" id="<?php echo esc_attr( $shipping_id ); ?>" name="shipping_fee" data-delivery-type="<?php echo esc_attr( $delivery_type ); ?>">
+                        <option value="" selected><?php echo esc_html( sprintf( __( 'Chọn khu vực — %s', 'flatsome-child' ), $delivery_label ) ); ?></option>
+                        <?php foreach ( $shipping_locations as $location => $value ) : ?>
+                            <?php $location_fee = dmc_pl_resolve_location_fee( $value, $delivery_type ); ?>
+                            <option value="<?php echo esc_attr( (string) $location_fee ); ?>" data-location="<?php echo esc_attr( $location ); ?>">
+                                <?php
+                                echo esc_html( $location );
+                                echo ' — ';
+                                echo wp_strip_all_tags( wc_price( $location_fee ) ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+                                ?>
+                            </option>
                         <?php endforeach; ?>
                     </select>
                 </div>
-                <div style="padding: 10px 0;">
-					<div class="include-shipping-fee" style="display:none;">Tổng Giá Bán (bao gồm vận chuyển)</div>
-                    <div id="price_final" style="color:#D70B00; font-weight:700; font-size: 24px;"></div>
-                    <input type="hidden" name="price_final" value="<?= $sale_price_customer ?>"?>
+
+                <div class="pl-price__breakdown" id="pl-price-breakdown"<?php echo $voucher_discount > 0 ? '' : ' hidden'; ?>>
+                    <div class="pl-price__row pl-price__row--item">
+                        <span class="pl-price__label"><?php esc_html_e( 'Giá khuyến mãi', 'flatsome-child' ); ?></span>
+                        <span class="pl-price__value pl-price__value--item" id="pl-breakdown-sale"><?php echo wc_price( $raw_sale_price ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></span>
+                    </div>
+                    <div class="pl-price__row pl-price__row--item pl-price__row--voucher" id="pl-voucher-discount-row"<?php echo $voucher_discount > 0 ? '' : ' hidden'; ?>>
+                        <span class="pl-price__label" id="pl-voucher-discount-label">
+                            <?php
+                            echo esc_html(
+                                $voucher_code
+                                    ? sprintf( __( 'Voucher (%s)', 'flatsome-child' ), $voucher_code )
+                                    : __( 'Giảm voucher', 'flatsome-child' )
+                            );
+                            ?>
+                        </span>
+                        <span class="pl-price__value pl-price__value--item pl-price__value--voucher" id="pl-voucher-discount-value">
+                            <?php echo $voucher_discount > 0 ? '-' . wp_strip_all_tags( wc_price( $voucher_discount ) ) : ''; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+                        </span>
+                    </div>
+                    <div class="pl-price__row pl-price__row--item pl-price__row--shipping" id="pl-shipping-fee-row" hidden>
+                        <span class="pl-price__label" id="pl-shipping-fee-label"><?php echo esc_html( $fee_label_prefix ); ?></span>
+                        <span class="pl-price__value pl-price__value--item pl-price__value--shipping" id="pl-shipping-fee-value"></span>
+                    </div>
+                    <div class="pl-price__row pl-price__row--total">
+                        <span class="pl-price__label pl-price__label--total"><?php esc_html_e( 'Tổng giá bán', 'flatsome-child' ); ?></span>
+                        <span class="pl-price__value pl-price__value--total" id="price_final"></span>
+                    </div>
                 </div>
-                
+
+                <input type="hidden" name="price_final" value="<?php echo esc_attr( $sale_price_customer ); ?>">
+                <input type="hidden" name="shipping_location" value="">
+                <input type="hidden" name="delivery_type" value="<?php echo esc_attr( $delivery_type ); ?>">
             </div>
-            <script>
-                jQuery(document).ready(function($){
-                    const overlay = document.createElement('div');
-                    const parent = document.querySelector('form.cart');
-                    parent.style.position = 'relative';
-                    overlay.style.position = 'absolute';
-                    overlay.style.top = '0';
-                    overlay.style.left = '0';
-                    overlay.style.width = '100%';
-                    overlay.style.height = '100%';
-                    overlay.style.backgroundColor = 'rgba(0, 0, 0, 0)';
-                    overlay.style.zIndex = '1000';
-                    parent.append(overlay);
-
-                    $(overlay).on('click', function(){
-                        const shippingFee = $('select[name="shipping_fee"]').val();
-                        if (!shippingFee) {
-                            $('.select2-container .select2-selection').css('border','2px solid red');
-                            $('html, body').animate({
-                                scrollTop: $('select[name="shipping_fee"]').offset().top - (119 + 100)
-                            }, "fast");
-                        }
-                    });
-
-                    $('form.cart').on('click', '.bk-btn-paynow', function(){
-                        if (<?= wp_is_mobile() ?>) {
-                            setTimeout(function(){
-                                window.location.reload();
-                            },1000);
-                            
-                        }
-                    });
-
-                    $('select[name="shipping_fee"]').on('input',function(){
-                        const price = parseInt($('input[name="price_final"]').val());
-                        const shipping_fee = parseInt($(this).val());
-                        const priceFinal = parseInt(price+shipping_fee);
-                        let formattedNumber = priceFinal.toLocaleString('vi-VN', { style: 'currency', currency: 'VND' });
-                        $('#price_final').html(' '+formattedNumber);
-                        $('.include-shipping-fee').removeAttr('style');
-                        $('.bk-product-price').html(priceFinal);
-                        $.ajax({
-                            url:  "<?php echo admin_url( 'admin-ajax.php' ); ?>",  // URL của AJAX trong WooCommerce
-                            type: 'POST',
-                            data: {
-                                action: 'update_cart_price_based_on_district',
-                                price: price,
-                                priceFinal: priceFinal,
-                                productId: "<?= $product->get_id() ?>"
-                            },
-                            success: function(response) {
-                                if (response.success) {
-                                    $('.select2-container .select2-selection').removeAttr('style');
-                                    $(overlay).remove();
-                                }
-                            }
-                        });
-                    });
-                   
-                }); 
-            </script>
             <?php
         }
     }else{
@@ -146,14 +179,16 @@ function flatsome_price_html($product, $is_variation = false){
 }
 
 function update_cart_price_based_on_district() {
-    // Lấy thông tin quận từ AJAX
-    if (!isset($_POST['priceFinal']) || !isset($_POST['price']) || !is_numeric($_POST['priceFinal']) || !isset($_POST['productId'])) return wp_send_json_error('Missing data');
-    $product = wc_get_product($_POST['productId']);
-    if (!$product) return wp_send_json_error('Missing product');
+    // Preview-only: giá hiển thị được tính ở JS; không ghi đè sale_price sản phẩm.
+    if ( ! isset( $_POST['priceFinal'], $_POST['price'], $_POST['productId'] ) || ! is_numeric( $_POST['priceFinal'] ) ) {
+        wp_send_json_error( 'Missing data' );
+    }
 
-    update_post_meta($_POST['productId'], 'set_shipping_fee', $_POST['price']);
-    $product->set_sale_price($_POST['priceFinal']);
-    $product->save();
+    $product = wc_get_product( (int) $_POST['productId'] );
+    if ( ! $product ) {
+        wp_send_json_error( 'Missing product' );
+    }
+
     wp_send_json_success();
 }
 add_action('wp_ajax_update_cart_price_based_on_district', 'update_cart_price_based_on_district');
@@ -453,135 +488,39 @@ function add_menu_brand() {
 add_action('woocommerce_before_main_content', 'add_menu_brand', 100);
 
 
-// ADVANCE FIELDS CUSSTOM OPTIONS
-if( function_exists('acf_add_options_page') ) {
-    acf_add_options_page(array(
-        'page_title'    => 'Theme General Settings',
-        'menu_title'    => 'Theme Settings',
-        'menu_slug'     => 'theme-general-settings',
-        'capability'    => 'edit_posts',
-        'redirect'      => false
-    ));
-    
-    acf_add_options_sub_page(array(
-        'page_title'    => 'Theme Header Settings',
-        'menu_title'    => 'Header',
-        'parent_slug'   => 'theme-general-settings',
-    ));
-    
-    acf_add_options_sub_page(array(
-        'page_title'    => 'Theme Footer Settings',
-        'menu_title'    => 'Footer',
-        'parent_slug'   => 'theme-general-settings',
-    ));
+// ADVANCE FIELDS CUSTOM OPTIONS
+function dmc_register_acf_options_pages() {
+	if ( ! function_exists( 'acf_add_options_page' ) ) {
+		return;
+	}
+
+	acf_add_options_page(
+		array(
+			'page_title' => 'Theme General Settings',
+			'menu_title' => 'Theme Settings',
+			'menu_slug'  => 'theme-general-settings',
+			'capability' => 'edit_posts',
+			'redirect'   => false,
+		)
+	);
+
+	acf_add_options_sub_page(
+		array(
+			'page_title'  => 'Theme Header Settings',
+			'menu_title'  => 'Header',
+			'parent_slug' => 'theme-general-settings',
+		)
+	);
+
+	acf_add_options_sub_page(
+		array(
+			'page_title'  => 'Theme Footer Settings',
+			'menu_title'  => 'Footer',
+			'parent_slug' => 'theme-general-settings',
+		)
+	);
 }
-
-//CUSTOM SCRIPT
-function scripts_init() {
-    //Get var flashsale
-    $start_hour = get_field('flashsale_hours_start','option');
-    $start_minute = get_field('flashsale_minutes_start','option');
-    $cron_hour = get_field('flashsale_hours_end','option');
-    $cron_minute = get_field('flashsale_minutes_end','option');
-    $end_days = get_field('flashsale_days_start','option');
-    $cron_days = get_field('flashsale_days_end','option');
-    $cron_months = get_field('flashsale_months_end','option');
-    
-    wp_register_script('flashsale-slick-js', get_stylesheet_directory_uri()  . '/assets/js/slick.js', array('jquery') );
-    
-
-    wp_register_script('flashsale-script', get_stylesheet_directory_uri()  . '/assets/js/flashsale.js', array('jquery') );
-    wp_enqueue_script( 'flashsale-slick-js' );
-    wp_enqueue_script( 'flashsale-script' );
-    
-    wp_register_style('flashsale-slick-css', get_stylesheet_directory_uri()  . '/assets/css/slick.css' );
-    wp_enqueue_style( 'flashsale-slick-css' );
-    wp_enqueue_style( 'flashsale-slick-theme-css', get_stylesheet_directory_uri()  . '/assets/css/slick-theme.css');
-    wp_enqueue_style( 'flashsale-flashsale-css', get_stylesheet_directory_uri()  . '/assets/css/flashsale.css');
-    
-    wp_localize_script( 'flashsale-script', 'flashsale_object', array(
-        'start_hour'    => $start_hour,
-        'start_minute'  => $start_minute,
-        'end_days'      => $end_days,
-        'cron_hour'     => $cron_hour,
-        'cron_minute'   => $cron_minute,
-        'cron_days'     => $cron_days,
-        'cron_months'   => $cron_months
-    ));
-}
-
-add_action( 'init', 'scripts_init' );
-
-//SHORT CODE 
-function flashsale_func( $atts ){
-    ob_start();
-    ?>
-    <?php
-        // Check rows existexists.
-        if( have_rows('flashsale_products','option') ):
-    ?>
-        <section>
-            <div class="flashsale">
-                <div class="title-info" bis_skin_checked="1">
-                    <div class="bg-snow" bis_skin_checked="1"></div>
-                    <div class="count-down-time" bis_skin_checked="1">
-                        <div class="count-down_name" bis_skin_checked="1">
-                            <img width="40" src="<?= get_stylesheet_directory_uri().'/assets/imgs/icons/i-flash-sale-red.png'; ?>" alt="flash sale"><span class="title">FlashSale</span> | Kết Thúc Trong
-                        </div>
-                        <div id="count_down" bis_skin_checked="1"></div>
-                    </div>
-                </div>
-                <div class="my-flashsale">
-    
-            <div class="row">
-                <div class="multiple-items">
-    <?php
-            while( have_rows('flashsale_products','option') ) : the_row();
-            // Load sub field value.
-            $post = get_sub_field('flashsale','option');
-            $_product = wc_get_product( $post->ID );
-            $_sale_price = $_product->get_sale_price();
-            $_regular_price = $_product->get_regular_price();
-            $_price = $_product->get_price();
-            $thumbnail = get_the_post_thumbnail_url($post->ID);
-            $sale = round(((floatval($_regular_price) - floatval($_sale_price)) / floatval($_regular_price)) * 100);
-    ?>
-            <a href="<?= get_permalink($post->ID) ?>">
-                <div class="item">
-                    <div class="item__img">
-                        <div class="item__discount">
-                            <img width="20" src="<?= get_stylesheet_directory_uri().'/assets/imgs/icons/coupon.png'; ?>" alt="discount"/>
-                            Giảm sốc<span><?= '-'.$sale.'%' ?></span>
-                        </div>
-                        <img src="<?= $thumbnail; ?>" alt="<?= $post->post_title ?>" />
-                    </div>
-                    <div class="item__info">
-                        <div class="item__title"><?= $post->post_title ?></div>
-                        <div class="item__price">
-                            <div class="item__sale-price"><?= number_format($_sale_price,0,'','.').'đ'; ?></div>
-                            <div class="item__regular-price"><?= number_format($_regular_price,0,'','.').'đ'; ?></div>
-                        </div>
-                    </div>
-                </div>   
-            </a>
-    <?php
-            endwhile;
-    ?>
-                </div>
-            </div>
-                </div>
-            </div>
-        <section>
-    <?php
-        endif; 
-    ?>
-    <?php
-    $content = ob_get_contents();
-    ob_get_clean();
-    return $content;
-}
-add_shortcode( 'FLASHSALE', 'flashsale_func' );
-
+add_action( 'acf/init', 'dmc_register_acf_options_pages' );
 
 function enqueue_select2_assets() {
     wp_enqueue_style(

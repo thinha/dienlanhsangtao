@@ -13,11 +13,34 @@ use PDFEmbedder\Tasks\UsageTracking\SendUsageTask;
 class Options {
 
 	/**
-	 * This key used to save/retrieve options from wp_options table.
+	 * This key used to save/retrieve options from the wp_options table.
 	 *
 	 * @since 4.7.0
 	 */
-	const KEY = 'pdfemb';
+	public const KEY = 'pdfemb';
+
+	/**
+	 * Default options for the Lite version.
+	 *
+	 * @since 4.9.0
+	 */
+	public const LITE_DEFAULTS = [
+		'pdfemb_width'        => 'max',
+		'pdfemb_height'       => 'max',
+		'pdfemb_toolbar'      => 'bottom',
+		'pdfemb_toolbarfixed' => 'off',
+		'usagetracking'       => 'off',
+	];
+
+	/**
+	 * In which context the saving process is performed.
+	 * Right now this is a section of the page.
+	 *
+	 * @since 4.9.0
+	 *
+	 * @var string
+	 */
+	public $saving_context = '';
 
 	/**
 	 * Internal cached holder for the options.
@@ -29,7 +52,7 @@ class Options {
 	private $options = [];
 
 	/**
-	 * Default plugin options.
+	 * Default plugin options, hydrated by Lite and Premium plans.
 	 *
 	 * @since 4.7.0
 	 */
@@ -42,17 +65,7 @@ class Options {
 		 *
 		 * @param array $defaults The default options.
 		 */
-		return apply_filters(
-			'pdfemb_options_defaults',
-			[
-				'pdfemb_width'        => 'max',
-				'pdfemb_height'       => 'max',
-				'pdfemb_toolbar'      => 'bottom',
-				'pdfemb_toolbarfixed' => 'off',
-				'poweredby'           => 'off', // Removed.
-				'usagetracking'       => 'off',
-			]
-		);
+		return apply_filters( 'pdfemb_options_defaults', self::LITE_DEFAULTS );
 	}
 
 	/**
@@ -66,11 +79,8 @@ class Options {
 			return $this->options;
 		}
 
-		if ( Multisite::is_network_activated() ) {
-			$options = get_site_option( self::KEY, [] );
-		} else {
-			$options = get_option( self::KEY, [] );
-		}
+		// Get raw options from DB.
+		$options = $this->get_from_db();
 
 		// Inject default options into those that are saved in DB.
 		foreach ( $this->get_defaults() as $k => $v ) {
@@ -80,7 +90,7 @@ class Options {
 		}
 
 		/**
-		 * Filter the plugin options.
+		 * Filter the plugin options to allow programmatic modification.
 		 *
 		 * @since 4.7.0
 		 *
@@ -92,6 +102,63 @@ class Options {
 	}
 
 	/**
+	 * Save the plugin options.
+	 *
+	 * @since 4.7.0
+	 * @since 4.9.0 Added a $context parameter.
+	 *
+	 * @param array  $input   The options to save, they will be validated.
+	 * @param string $context In which context the saving process is performed.
+	 */
+	public function save( array $input, string $context = '' ) {
+
+		if ( empty( $context ) ) {
+			return;
+		}
+
+		$this->saving_context = $context;
+
+		$this->options = self::validate( $input );
+
+		if ( Multisite::is_network_activated() ) {
+			update_site_option( self::KEY, $this->options );
+		} else {
+			update_option( self::KEY, $this->options, false );
+		}
+	}
+
+	/**
+	 * Drop the in-memory options cache so the next {@see get()} call re-reads
+	 * from the DB. Use after writing the options row out-of-band (e.g. via
+	 * `update_option()` directly) — {@see save()} keeps the cache coherent
+	 * on its own.
+	 *
+	 * @since 5.0.0
+	 */
+	public function reset_cache(): void {
+
+		$this->options = [];
+	}
+
+	/**
+	 * Check if the option exists in the database.
+	 *
+	 * @since 4.9.2
+	 *
+	 * @param string $key The key to check.
+	 */
+	public function exist( string $key = '' ): bool {
+
+		$options = $this->get_from_db();
+
+		if ( empty( $key ) ) {
+			return ! empty( $options );
+		}
+
+		return array_key_exists( $key, $options );
+	}
+
+	/**
 	 * Go through each option and sanitize and validate its value before saving into DB.
 	 *
 	 * @since 4.7.0
@@ -100,9 +167,81 @@ class Options {
 	 */
 	public static function validate( array $input ): array { // phpcs:ignore Generic.Metrics.CyclomaticComplexity.TooHigh
 
-		$validated = [];
+		/**
+		 * Filter the validated plugin options.
+		 * The value will be hydrated by each plan individually.
+		 *
+		 * @since 4.7.0
+		 *
+		 * @param array $validated Already validated portion of plugin options, to be saved into DB.
+		 * @param array $input     Plugin options to validate.
+		 */
+		return apply_filters( 'pdfemb_options_validated', [], $input );
+	}
 
-		$validated['pdfemb_width'] = isset( $input['pdfemb_width'] ) ? strtolower( trim( $input['pdfemb_width'] ) ) : 'max';
+	/**
+	 * Clean the provided array of options from the specific set of defaults.
+	 *
+	 * @since 4.9.0
+	 *
+	 * @param array $input    The options to clean.
+	 * @param array $defaults The default options to compare against.
+	 */
+	public function clean_options_from_defaults( array $input = [], array $defaults = [] ): array {
+
+		if ( empty( $input ) ) {
+			$input = $this->get_from_db();
+		}
+
+		if ( empty( $defaults ) ) {
+			$defaults = self::LITE_DEFAULTS;
+		}
+
+		return array_diff_key( $input, $defaults );
+	}
+
+	/**
+	 * Validate the Premium options.
+	 * The validation is done in steps according to each plan priority.
+	 *
+	 * @since 4.9.0
+	 * @since 5.0.0 Added the `render` saving context for inline atts on the front end.
+	 *
+	 * @param array $validated Validated options.
+	 * @param array $input     Original options coming from the request.
+     */
+	public function validate_options( array $validated, array $input ): array {
+
+		// Render-time validation of inline shortcode/block/widget atts. Only the keys
+		// the user actually passed are returned, so the caller can layer them on top of
+		// the merged defaults+DB options without erasing settings the user didn't override.
+		if ( $this->saving_context === 'render' ) {
+			return $this->validate_options_render( $input );
+		}
+
+		/**
+		 * Just return the data from DB when we are validating settings elsewhere.
+		 * Lite settings shouldn't be re-validated in this case, as they are absent from $input.
+		 */
+		if ( $this->saving_context !== 'settings' ) {
+			return $this->get_from_db();
+		}
+
+		return $this->validate_options_settings( $input );
+	}
+
+	/**
+	 * Validate the Lite settings page input on admin save.
+	 *
+	 * @since 5.0.0
+	 *
+	 * @param array $input Raw POST input from the Lite settings form.
+	 */
+	private function validate_options_settings( array $input ): array { // phpcs:ignore Generic.Metrics.CyclomaticComplexity.TooHigh
+
+		$validated = $this->clean_options_from_defaults();
+
+		$validated['pdfemb_width'] = isset( $input['pdfemb_width'] ) ? strtolower( trim( $input['pdfemb_width'] ) ) : self::LITE_DEFAULTS['pdfemb_width'];
 
 		if (
 			! is_numeric( $validated['pdfemb_width'] ) &&
@@ -119,10 +258,10 @@ class Options {
 			}
 
 			// Revert back to max as last resort, don't leave field blank.
-			$validated['pdfemb_width'] = 'max';
+			$validated['pdfemb_width'] = self::LITE_DEFAULTS['pdfemb_width'];
 		}
 
-		$validated['pdfemb_height'] = isset( $input['pdfemb_height'] ) ? strtolower( trim( $input['pdfemb_height'] ) ) : 'max';
+		$validated['pdfemb_height'] = isset( $input['pdfemb_height'] ) ? strtolower( trim( $input['pdfemb_height'] ) ) : self::LITE_DEFAULTS['pdfemb_height'];
 
 		if (
 			! is_numeric( $validated['pdfemb_height'] ) &&
@@ -139,7 +278,7 @@ class Options {
 			}
 
 			// Revert back to max as last resort, don't leave field blank.
-			$validated['pdfemb_height'] = 'max';
+			$validated['pdfemb_height'] = self::LITE_DEFAULTS['pdfemb_height'];
 		}
 
 		if (
@@ -148,7 +287,7 @@ class Options {
 		) {
 			$validated['pdfemb_toolbar'] = $input['pdfemb_toolbar'];
 		} else {
-			$validated['pdfemb_toolbar'] = 'bottom';
+			$validated['pdfemb_toolbar'] = self::LITE_DEFAULTS['pdfemb_toolbar'];
 		}
 
 		if (
@@ -156,12 +295,9 @@ class Options {
 			in_array( $input['pdfemb_toolbarfixed'], [ 'on', 'off' ], true )
 		) {
 			$validated['pdfemb_toolbarfixed'] = $input['pdfemb_toolbarfixed'];
+		} else {
+			$validated['pdfemb_toolbarfixed'] = self::LITE_DEFAULTS['pdfemb_toolbarfixed'];
 		}
-
-		$validated['pdfemb_version'] = PDFEMB_VERSION;
-
-		// Always off, legacy, removed.
-		$validated['poweredby'] = 'off';
 
 		if (
 			isset( $input['usagetracking'] ) &&
@@ -170,18 +306,61 @@ class Options {
 			$validated['usagetracking'] = $input['usagetracking'];
 		} else {
 			pdf_embedder()->tasks()->cancel( SendUsageTask::ACTION );
-			$validated['usagetracking'] = 'off';
+			$validated['usagetracking'] = self::LITE_DEFAULTS['usagetracking'];
 		}
 
-		/**
-		 * Filter the validated plugin options.
-		 *
-		 * @since 4.7.0
-		 *
-		 * @param array $validated Validated plugin options.
-		 * @param array $input     Plugin options to validate.
-		 */
-		return apply_filters( 'pdfemb_options_validated', $validated, $input );
+		return $validated;
+	}
+
+	/**
+	 * Validate inline shortcode/block/widget atts against the Lite defaults.
+	 *
+	 * Only the keys present in `$input` are returned. Keys the user did not pass inline
+	 * are intentionally absent so they fall through to the merged defaults+DB layer in
+	 * `Viewer::set_options()` rather than being overwritten with hard-coded defaults.
+	 * No side effects (`add_settings_error`, task cancellation) — the settings-context
+	 * validator has those, this one is pure validation suitable for the front end.
+	 *
+	 * `usagetracking` is intentionally not validated here: it's a global admin setting
+	 * with no per-instance meaning and should never be passed inline.
+	 *
+	 * @since 5.0.0
+	 *
+	 * @param array $input User-provided inline atts (already prefixed with `pdfemb_`).
+	 */
+	private function validate_options_render( array $input ): array {
+
+		$validated = [];
+
+		if ( isset( $input['pdfemb_width'] ) ) {
+			$width = strtolower( trim( (string) $input['pdfemb_width'] ) );
+
+			$validated['pdfemb_width'] = ( is_numeric( $width ) || $width === 'max' || $width === 'auto' )
+				? $width
+				: self::LITE_DEFAULTS['pdfemb_width'];
+		}
+
+		if ( isset( $input['pdfemb_height'] ) ) {
+			$height = strtolower( trim( (string) $input['pdfemb_height'] ) );
+
+			$validated['pdfemb_height'] = ( is_numeric( $height ) || $height === 'max' || $height === 'auto' )
+				? $height
+				: self::LITE_DEFAULTS['pdfemb_height'];
+		}
+
+		if ( isset( $input['pdfemb_toolbar'] ) ) {
+			$validated['pdfemb_toolbar'] = in_array( $input['pdfemb_toolbar'], [ 'top', 'bottom', 'both', 'none' ], true )
+				? $input['pdfemb_toolbar']
+				: self::LITE_DEFAULTS['pdfemb_toolbar'];
+		}
+
+		if ( isset( $input['pdfemb_toolbarfixed'] ) ) {
+			$validated['pdfemb_toolbarfixed'] = in_array( $input['pdfemb_toolbarfixed'], [ 'on', 'off' ], true )
+				? $input['pdfemb_toolbarfixed']
+				: self::LITE_DEFAULTS['pdfemb_toolbarfixed'];
+		}
+
+		return $validated;
 	}
 
 	/**
@@ -203,26 +382,6 @@ class Options {
 		}
 
 		return __( 'Unspecified error. Please review all the settings and try again.', 'pdf-embedder' );
-	}
-
-	/**
-	 * Save the plugin options.
-	 *
-	 * @since 4.7.0
-	 *
-	 * @param array $options The options to save, they will be validated.
-	 */
-	public function save( array $options ) {
-
-		$options = self::validate( $options );
-
-		if ( Multisite::is_network_activated() ) {
-			update_site_option( self::KEY, $options );
-		} else {
-			update_option( self::KEY, $options, 'no' );
-		}
-
-		$this->options = $options;
 	}
 
 	/**
@@ -277,5 +436,21 @@ class Options {
 			),
 			array_values( $options )
 		);
+	}
+
+	/**
+	 * Get the options from the database, without default values.
+	 *
+	 * @since 4.9.0
+	 */
+	private function get_from_db(): array {
+
+		if ( Multisite::is_network_activated() ) {
+			$options = get_site_option( self::KEY, [] );
+		} else {
+			$options = get_option( self::KEY, [] );
+		}
+
+		return $options;
 	}
 }

@@ -1,7 +1,12 @@
 <?php
-/*******************************************************************************
- * Copyright (c) 2019, Code Atlantic LLC
- ******************************************************************************/
+/**
+ * Upgrade Popups class for batch
+ *
+ * @package   PopupMaker
+ * @copyright Copyright (c) 2024, Code Atlantic LLC
+ *
+ * phpcs:disable PEAR.NamingConventions.ValidClassName.Invalid
+ */
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -50,5 +55,4 @@ class PUM_Upgrade_v1_7_Popups extends PUM_Abstract_Upgrade_Popups {
 			$popup->update_meta( 'data_version', 3 );
 		}
 	}
-
 }

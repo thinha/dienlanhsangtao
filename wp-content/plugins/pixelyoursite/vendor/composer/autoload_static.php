@@ -7,16 +7,32 @@ namespace Composer\Autoload;
 class ComposerStaticInitdaa5543e142760e462d1cb6eea8cb38e
 {
     public static $prefixLengthsPsr4 = array (
-        'U' => 
+        'U' =>
         array (
             'URL\\' => 4,
+        ),
+        'J' =>
+        array (
+            'Jaybizzle\\CrawlerDetect\\' => 24,
+        ),
+        'B' =>
+        array (
+            'Behat\\Transliterator\\' => 21,
         ),
     );
 
     public static $prefixDirsPsr4 = array (
-        'URL\\' => 
+        'URL\\' =>
         array (
             0 => __DIR__ . '/..' . '/glenscott/url-normalizer/src/URL',
+        ),
+        'Jaybizzle\\CrawlerDetect\\' =>
+        array (
+            0 => __DIR__ . '/..' . '/jaybizzle/crawler-detect/src',
+        ),
+        'Behat\\Transliterator\\' =>
+        array (
+            0 => __DIR__ . '/..' . '/behat/transliterator/src/Behat/Transliterator',
         ),
     );
 

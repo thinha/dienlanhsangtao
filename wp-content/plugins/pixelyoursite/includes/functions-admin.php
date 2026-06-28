@@ -51,7 +51,7 @@ function getAdminPrimaryNavTabs() {
     $tabs = array(
         'general' => array(
             'url'  => buildAdminUrl( 'pixelyoursite' ),
-            'name' => 'General',
+            'name' => 'Dashboard',
         ),
         'events'  => array(
             'url'  => buildAdminUrl( 'pixelyoursite', 'events' ),
@@ -84,11 +84,13 @@ function getAdminPrimaryNavTabs() {
         );
 
     }
-
+    $tabs[ 'head_footer' ] = array(
+        'url'  => buildAdminUrl( 'pixelyoursite', 'head_footer' ),
+        'name' => 'Head & Footer',
+    );
     $tabs['gdpr'] = array(
         'url'  => buildAdminUrl( 'pixelyoursite', 'gdpr' ),
         'name' => 'Consent',
-        'class' => 'orange'
     );
 
     return $tabs;
@@ -101,10 +103,20 @@ function getAdminSecondaryNavTabs() {
         'facebook_settings' => array(
             'url'  => buildAdminUrl( 'pixelyoursite', 'facebook_settings' ),
             'name' => 'Meta Settings',
+            'pos' => 5,
+            'icon' => PYS_FREE_URL . '/dist/images/meta-logo.svg'
         ),
-        'ga_settings'       => array(
-            'url'  => buildAdminUrl( 'pixelyoursite', 'ga_settings' ),
-            'name' => 'Google Analytics Settings',
+        'google_tags_settings'   => array(
+            'url'  => buildAdminUrl( 'pixelyoursite', 'google_tags_settings' ),
+            'name' => 'Google Tags Settings',
+            'pos' => 10,
+            'icon' => PYS_FREE_URL . '/dist/images/google-tags-logo.svg'
+        ),
+        'gtm_tags_settings'   => array(
+            'url'  => buildAdminUrl( 'pixelyoursite', 'gtm_tags_settings' ),
+            'name' => 'GTM Tag Settings',
+            'pos' => 15,
+            'icon' => PYS_FREE_URL . '/dist/images/gtm-logo.svg'
         ),
     );
 
@@ -113,19 +125,44 @@ function getAdminSecondaryNavTabs() {
     $tabs['superpack_settings'] = array(
         'url'  => buildAdminUrl( 'pixelyoursite', 'superpack_settings' ),
         'name' => 'Super Pack Settings',
+        'pos' => 30,
+        'icon' => PYS_FREE_URL . '/dist/images/superpack-logo.svg'
     );
 
-    $tabs['head_footer'] = array(
-        'url'  => buildAdminUrl( 'pixelyoursite', 'head_footer' ),
-        'name' => 'Head & Footer',
+    $tabs['hooks'] = array(
+        'url'  => buildAdminUrl( 'pixelyoursite', 'hooks' ),
+        'name' => 'Filter & Hook List',
+        'pos' => 50,
+        'icon' => PYS_FREE_URL . '/dist/images/filter-icon.svg'
     );
+    $tabs['logs'] = array(
+        'url'  => buildAdminUrl( 'pixelyoursite', 'logs' ),
+        'name' => 'Logs',
+        'pos' => 60,
+        'icon' => PYS_FREE_URL . '/dist/images/logs-icon.svg'
+    );
+
+
+    uasort($tabs,function ($first,$second){
+        $firstIndex = isset($first['pos']) ? $first['pos'] : 30;
+        $secondIndex = isset($second['pos']) ? $second['pos'] : 30;
+        return $firstIndex - $secondIndex;
+    });
 
     return $tabs;
 
 }
 
-function cardCollapseBtn($attr = "") {
-    echo '<span class="card-collapse" '.$attr.'><i class="fa fa-sliders" aria-hidden="true"></i></span>';
+function cardCollapseBtn($attr = "", $icon = "icon-shevron-down") {
+    echo '<span class="card-collapse" '.$attr.'><i class="' . esc_attr( $icon ) . '" aria-hidden="true"></i></span>';
+}
+
+function cardCollapseSettings() {
+    ?>
+    <span class="card-collapse">
+        <?php include PYS_FREE_VIEW_PATH . '/UI/properties-button-off.php'; ?>
+    </span>
+    <?php
 }
 
 /**
@@ -152,16 +189,6 @@ function manageAdminPermissions() {
     }
 }
 
-function renderPopoverButton( $popover_id ) {
-    ?>
-
-    <button type="button" class="btn btn-link" role="button" data-toggle="pys-popover" data-trigger="focus"
-            data-placement="right" data-popover_id="<?php esc_attr_e( $popover_id ); ?>">
-        <i class="fa fa-info-circle" aria-hidden="true"></i>
-    </button>
-
-    <?php
-}
 
 function renderExternalHelpIcon( $url ) {
     ?>
@@ -214,7 +241,9 @@ function purgeCache() {
         sg_cachepress_purge_cache();
 
     }
-
+    if(isRealCookieBannerPluginActivated()){
+        wp_rcb_invalidate_templates_cache();
+    }
 }
 
 function adminIncompatibleVersionNotice( $pluginName, $minVersion ) {
@@ -231,8 +260,13 @@ function adminIncompatibleVersionNotice( $pluginName, $minVersion ) {
 
 function adminRenderNotices() {
 
+
     if ( ! current_user_can( 'manage_pys' ) ) {
         return;
+    }
+
+    if ( ! wp_style_is( 'pys_notice' ) ) {
+        wp_enqueue_style( 'pys_notice', PYS_FREE_URL . '/dist/styles/notice.min.css', array(), PYS_FREE_VERSION );
     }
 
     /**
@@ -245,13 +279,13 @@ function adminRenderNotices() {
     {
         $meta_key = 'pys_notice_dont_CAPI_start_delay';
         $user_id = get_current_user_id();
-        $start_delay = get_user_meta( $user_id, $meta_key );
+        $start_delay = get_option( $meta_key ) ?? get_user_meta( $user_id, $meta_key );
         $day_ago = time() - DAY_IN_SECONDS;
         if($start_delay && $start_delay > $day_ago) {
             adminRenderNotCAPI(PYS());
         }
         else if(!$start_delay){
-            update_user_meta($user_id, $meta_key, time());
+            update_option($meta_key, time());
         }
 
     }
@@ -288,26 +322,28 @@ function adminRenderNotices() {
     }
 
     $ga_tracking_id = GA()->getPixelIDs() ;
-
+    $noticeRenderNotSupportUA = false;
     if ( GA()->enabled() && empty( $ga_tracking_id ) ) {
         $no_ga_pixels = true;
+
     } else {
         $no_ga_pixels = false;
+        if (!isGaV4($ga_tracking_id)) {
+            $noticeRenderNotSupportUA = true;
+        }
     }
-
-    $pinterest_pixel_id = Pinterest()->getOption( 'pixel_id' );
-    $pinterest_license_status = Pinterest()->getOption( 'license_status' );
-
-    if ( isPinterestActive() && Pinterest()->enabled()
-         && ! empty( $pinterest_license_status ) // license active or was active before
-         && empty( $pinterest_pixel_id ) ) {
-        $no_pinterest_pixels = true;
-    } else {
-        $no_pinterest_pixels = false;
+    if(GA()->enabled() && $noticeRenderNotSupportUA){
+        adminRenderNotSupportUA($noticeRenderNotSupportUA);
     }
-
+    $no_pinterest_pixels = false;
     if ( isPinterestActive() ) {
-
+        $pinterest_pixel_id = Pinterest()->getOption( 'pixel_id' );
+        $pinterest_license_status = Pinterest()->getOption( 'license_status' );
+        if ( Pinterest()->enabled()
+                && ! empty( $pinterest_license_status ) // license active or was active before
+                && empty( $pinterest_pixel_id )){
+            $no_pinterest_pixels = true;
+        }
         if ( $no_facebook_pixels && $no_ga_pixels && $no_pinterest_pixels ) {
             adminRenderNoPixelsNotice();
         } else {
@@ -382,7 +418,7 @@ function adminRenderLicenseExpirationNotice( $plugin ) {
 
     // show only if never dismissed or dismissed more than a week ago
     $meta_key = 'pys_' . $slug . '_expiration_notice_dismissed_at';
-    $dismissed_at = get_user_meta( $user_id, $meta_key );
+    $dismissed_at = get_option($meta_key) ?? get_user_meta( $user_id, $meta_key );
     if ( $dismissed_at ) {
 
         if ( is_array( $dismissed_at ) ) {
@@ -401,24 +437,24 @@ function adminRenderLicenseExpirationNotice( $plugin ) {
 
     ?>
 
-    <div class="notice notice-error is-dismissible pys_<?php esc_attr_e( $slug ); ?>_expiration_notice">
+    <div class="notice notice-error is-dismissible pys_<?php echo esc_attr( $slug ); ?>_expiration_notice">
         <p><strong>Your <?php echo $plugin->getPluginName(); ?> license key is expired</strong>, so you no longer get any updates. Don't miss our
             latest improvements and make sure that everything works smoothly.</p>
         <p>If you renewed your license but you still see this message, click on the "<a href="<?php echo esc_url( buildAdminUrl( 'pixelyoursite_licenses' ) ); ?>">Reactivate License</a>" button.</p>
-        <p class="mb-0"><a href="https://www.pixelyoursite.com/checkout/?edd_license_key=<?php esc_attr_e(
+        <p class="mb-0"><a href="https://www.pixelyoursite.com/checkout/?edd_license_key=<?php echo esc_attr(
                 $license_key ); ?>&utm_campaign=admin&utm_source=licenses&utm_medium=renew" target="_blank"><strong>Click here to renew your license now</strong></a></p>
     </div>
 
     <script type="application/javascript">
-        jQuery(document).on('click', '.pys_<?php esc_attr_e( $slug ); ?>_expiration_notice .notice-dismiss', function () {
+        jQuery(document).on('click', '.pys_<?php echo esc_attr( $slug ); ?>_expiration_notice .notice-dismiss', function () {
 
             jQuery.ajax({
                 url: ajaxurl,
                 data: {
                     action: 'pys_notice_dismiss',
-                    nonce: '<?php esc_attr_e( wp_create_nonce( 'pys_notice_dismiss' ) ); ?>',
-                    user_id: '<?php esc_attr_e( $user_id ); ?>',
-                    addon_slug: '<?php esc_attr_e( $slug ); ?>',
+                    nonce: '<?php echo esc_attr( wp_create_nonce( 'pys_notice_dismiss' ) ); ?>',
+                    user_id: '<?php echo esc_attr( $user_id ); ?>',
+                    addon_slug: '<?php echo esc_attr( $slug ); ?>',
                     meta_key: 'expiration_notice'
                 }
             })
@@ -442,8 +478,7 @@ function adminNoticeDismissHandler() {
 
     // save time when notice was dismissed
     $meta_key = 'pys_' . sanitize_text_field( $_REQUEST['addon_slug'] ) . '_' . sanitize_text_field( $_REQUEST['meta_key'] ) . '_dismissed_at';
-    $userId = sanitize_text_field( $_REQUEST['user_id'] );
-    update_user_meta($userId, $meta_key, time() );
+    update_option( $meta_key, time() );
 
 }
 
@@ -454,7 +489,7 @@ function adminRenderNotCAPI( $plugin ) {
 
     // show only if never dismissed or dismissed more than a week ago
     $meta_key = 'pys_' . $slug . '_CAPI_notice_dismissed_at';
-    $dismissed_at = get_user_meta( $user_id, $meta_key );
+    $dismissed_at = get_option( $meta_key ) ?? get_user_meta( $user_id, $meta_key );
     if ( $dismissed_at ) {
 
         if ( is_array( $dismissed_at ) ) {
@@ -469,7 +504,7 @@ function adminRenderNotCAPI( $plugin ) {
         else
         {
             ?>
-            <div class="notice notice-error is-dismissible pys_<?php esc_attr_e( $slug ); ?>_CAPI_notice">
+            <div class="notice notice-error is-dismissible pys_<?php echo esc_attr( $slug ); ?>_CAPI_notice">
                 <p><b>PixelYourSite Tip: </b>Don't forget to enable Meta Conversion API events. They can improve your ads performance and conversion tracking. Watch this video to learn how: <a href="https://www.youtube.com/watch?v=1rKd57SS094" target="_blank">watch the video</a>.</p>
             </div>
             <?php
@@ -479,7 +514,7 @@ function adminRenderNotCAPI( $plugin ) {
     else
     {
         ?>
-        <div class="notice notice-error is-dismissible pys_<?php esc_attr_e( $slug ); ?>_CAPI_notice">
+        <div class="notice notice-error is-dismissible pys_<?php echo esc_attr( $slug ); ?>_CAPI_notice">
             <p><b>PixelYourSite Tip: </b>Improve your Meta Ads conversion tracking and performance with Conversion API events. Simply add your token to enable CAPI. Watch this video to learn how to do it: <a href="https://www.youtube.com/watch?v=1rKd57SS094" target="_blank">watch the video</a>.</p>
         </div>
         <?php
@@ -487,15 +522,15 @@ function adminRenderNotCAPI( $plugin ) {
     ?>
 
     <script type="application/javascript">
-        jQuery(document).on('click', '.pys_<?php esc_attr_e( $slug ); ?>_CAPI_notice .notice-dismiss', function () {
+        jQuery(document).on('click', '.pys_<?php echo esc_attr( $slug ); ?>_CAPI_notice .notice-dismiss', function () {
 
             jQuery.ajax({
                 url: ajaxurl,
                 data: {
                     action: 'pys_notice_CAPI_dismiss',
-                    nonce: '<?php esc_attr_e( wp_create_nonce( 'pys_notice_CAPI_dismiss' ) ); ?>',
-                    user_id: '<?php esc_attr_e( $user_id ); ?>',
-                    addon_slug: '<?php esc_attr_e( $slug ); ?>',
+                    nonce: '<?php echo esc_attr( wp_create_nonce( 'pys_notice_CAPI_dismiss' ) ); ?>',
+                    user_id: '<?php echo esc_attr( $user_id ); ?>',
+                    addon_slug: '<?php echo esc_attr( $slug ); ?>',
                     meta_key: 'CAPI_notice'
                 }
             })
@@ -520,7 +555,7 @@ function adminNoticeCAPIDismissHandler() {
 
     // save time when notice was dismissed
     $meta_key = 'pys_' . sanitize_text_field( $_REQUEST['addon_slug'] ) . '_' . sanitize_text_field( $_REQUEST['meta_key'] ) . '_dismissed_at';
-    update_user_meta( sanitize_text_field($_REQUEST['user_id']), $meta_key, time() );
+    update_option( $meta_key, time() );
     die();
 }
 
@@ -565,7 +600,7 @@ function adminRenderNoPixelsNotice() {
 
     // do not show dismissed notice
     $meta_key = 'pys_core_no_pixels_dismissed_at';
-    $dismissed_at = get_user_meta( $user_id, $meta_key );
+    $dismissed_at = get_option( $meta_key ) ?? get_user_meta( $user_id, $meta_key );
     if ( $dismissed_at ) {
         return;
     }
@@ -585,8 +620,8 @@ function adminRenderNoPixelsNotice() {
                 url: ajaxurl,
                 data: {
                     action: 'pys_notice_dismiss',
-                    nonce: '<?php esc_attr_e( wp_create_nonce( 'pys_notice_dismiss' ) ); ?>',
-                    user_id: '<?php esc_attr_e( $user_id ); ?>',
+                    nonce: '<?php echo esc_attr( wp_create_nonce( 'pys_notice_dismiss' ) ); ?>',
+                    user_id: '<?php echo esc_attr( $user_id ); ?>',
                     addon_slug: 'core',
                     meta_key: 'no_pixels'
                 }
@@ -597,6 +632,66 @@ function adminRenderNoPixelsNotice() {
 
     <?php
 }
+
+
+function adminRenderNotSupportUA( $show = false) {
+
+
+    $user_id = get_current_user_id();
+
+    // show only if never dismissed or dismissed more than a week ago
+    $meta_key = 'pys_ga_UA_notice_dismissed_at';
+    $dismissed_at = get_option( $meta_key ) ?? get_user_meta( $user_id, $meta_key );
+    $week_ago = time() - WEEK_IN_SECONDS;
+    if ( $dismissed_at && is_array( $dismissed_at ) ) {
+        $dismissed_at = reset( $dismissed_at );
+    }
+    if ( !$dismissed_at || ($dismissed_at && $dismissed_at < $week_ago) && $show) {
+            ?>
+            <div class="notice notice-error is-dismissible pys_ga_UA_notice">
+                <p><b>PixelYourSite Tip: </b>The old Universal Analytics properties are not supported by Google Analytics anymore. You must use the new GA4 properties instead. <a href="https://www.youtube.com/watch?v=KkiGbfl1q48" target="_blank">Watch this video to find how to get your GA4 tag</a>.</p>
+            </div>
+            <?php
+    }
+    ?>
+
+    <script type="application/javascript">
+        jQuery(document).on('click', '.pys_ga_UA_notice .notice-dismiss', function () {
+
+            jQuery.ajax({
+                url: ajaxurl,
+                data: {
+                    action: 'pys_notice_UA_dismiss',
+                    nonce: '<?php echo esc_attr( wp_create_nonce( 'pys_notice_UA_dismiss' ) ); ?>',
+                    user_id: '<?php echo esc_attr( $user_id ); ?>',
+                    addon_slug: 'ga',
+                    meta_key: 'UA_notice'
+                }
+            })
+
+        })
+    </script>
+
+    <?php
+}
+add_action( 'wp_ajax_pys_notice_UA_dismiss', 'PixelYourSite\adminNoticeUADismissHandler' );
+
+function adminNoticeUADismissHandler() {
+
+    if ( empty( $_REQUEST['nonce'] ) || ! wp_verify_nonce( $_REQUEST['nonce'], 'pys_notice_UA_dismiss' ) ) {
+        return;
+    }
+
+    if ( empty( $_REQUEST['user_id'] ) || empty( $_REQUEST['addon_slug'] ) || empty( $_REQUEST['meta_key'] ) ) {
+        return;
+    }
+
+    // save time when notice was dismissed
+    $meta_key = 'pys_' . sanitize_text_field( $_REQUEST['addon_slug'] ) . '_' . sanitize_text_field( $_REQUEST['meta_key'] ) . '_dismissed_at';
+    update_option( $meta_key, time() );
+    die();
+}
+
 
 /**
  * @param Plugin|Settings $plugin
@@ -612,14 +707,14 @@ function adminRenderNoPixelNotice( $plugin ) {
 
     // do not show dismissed notice
     $meta_key = 'pys_' . $slug . '_no_pixel_dismissed_at';
-    $dismissed_at = get_user_meta( $user_id, $meta_key );
+    $dismissed_at = get_option( $meta_key ) ?? get_user_meta( $user_id, $meta_key );
     if ( $dismissed_at ) {
         return;
     }
 
     ?>
 
-    <div class="notice notice-warning is-dismissible pys_<?php esc_attr_e( $slug ); ?>_no_pixel_notice">
+    <div class="notice notice-warning is-dismissible pys_<?php echo esc_attr( $slug ); ?>_no_pixel_notice">
         <?php if ( $slug == 'facebook' ) : ?>
 
             <p>Add your Meta Pixel (formerly Facebook Pixel) ID and start tracking everything with PixelYourSite. <a
@@ -649,15 +744,15 @@ function adminRenderNoPixelNotice( $plugin ) {
     </div>
 
     <script type="application/javascript">
-        jQuery(document).on('click', '.pys_<?php esc_attr_e( $slug ); ?>_no_pixel_notice .notice-dismiss', function () {
+        jQuery(document).on('click', '.pys_<?php echo esc_attr( $slug ); ?>_no_pixel_notice .notice-dismiss', function () {
 
             jQuery.ajax({
                 url: ajaxurl,
                 data: {
                     action: 'pys_notice_dismiss',
-                    nonce: '<?php esc_attr_e( wp_create_nonce( 'pys_notice_dismiss' ) ); ?>',
-                    user_id: '<?php esc_attr_e( $user_id ); ?>',
-                    addon_slug: '<?php esc_attr_e( $slug ); ?>',
+                    nonce: '<?php echo esc_attr( wp_create_nonce( 'pys_notice_dismiss' ) ); ?>',
+                    user_id: '<?php echo esc_attr( $user_id ); ?>',
+                    addon_slug: '<?php echo esc_attr( $slug ); ?>',
                     meta_key: 'no_pixel'
                 }
             })
@@ -668,69 +763,111 @@ function adminRenderNoPixelNotice( $plugin ) {
     <?php
 }
 
-function renderDummyTextInput( $placeholder = '' ) {
+function renderDummyTextInput( $placeholder = '' , $type = 'standard' ) {
+    $classes = array(
+        "input-$type",
+        "disabled"
+    );
+    $classes = implode( ' ', $classes );
     ?>
 
-    <input type="text" disabled="disabled" placeholder="<?php esc_html_e( $placeholder ); ?>" class="form-control">
+    <input type="text" disabled placeholder="<?php esc_html_e( $placeholder ); ?>" class="<?php echo esc_attr( $classes ); ?>">
 
     <?php
 }
 function renderDummyTextAreaInput( $placeholder = '' ) {
     ?>
 
-    <textarea type="text" disabled="disabled" placeholder="<?php esc_html_e( $placeholder ); ?>" class="form-control">
+    <textarea type="text" disabled placeholder="<?php esc_html_e( $placeholder ); ?>" class="textarea-standard disabled">
     </textarea>
 
     <?php
 }
 function renderDummyNumberInput($default = 0) {
     ?>
-
-    <input type="number" disabled="disabled" min="0" max="100" class="form-control" value="<?=$default?>">
-
+    <div class="input-number-wrapper dummy-number-input">
+        <button class="decrease"><i class="icon-minus"></i></button>
+        <input type="number" disabled="disabled" min="0" max="100" value="<?=$default?>">
+        <button class="increase"><i class="icon-plus"></i></button>
+    </div>
     <?php
 }
 
-function renderDummySwitcher($isEnable = false) {
-    $attr = $isEnable ? " checked='checked'" : "";
+function renderDummyConditionalNumberPage($default = '=')
+{
     ?>
-
-    <div class="custom-switch disabled">
-        <input type="checkbox" value="1" <?=$attr?> disabled="disabled" class="custom-switch-input">
-        <label class="custom-switch-btn"></label>
+    <div class="select-short-wrap">
+        <select class="select-short"
+                disabled="disabled"
+                autocomplete="off">
+                <option disabled="disabled" selected value="<?php echo esc_attr( $default ); ?>" ><?php echo esc_attr( $default ); ?></option>
+        </select>
     </div>
 
     <?php
 }
 
-function renderDummyCheckbox( $label, $with_pro_badge = false ) {
+function renderDummyNumberInputPercent( $default = 0 ) {
+
+    ?>
+    <div class="input-number-wrapper input-number-wrapper-percent">
+        <button class="decrease"><i class="icon-minus"></i></button>
+        <input disabled="disabled" type="number" value="<?= $default ?>" min="0" max="100">
+        <button class="increase"><i class="icon-plus"></i></button>
+    </div>
+
+    <?php
+
+}
+
+function renderDummySwitcher($isEnable = false, $type = 'secondary') {
+    $attr = $isEnable ? " checked='checked'" : "";
+    $classes = array( "$type-switch");
+    if ( $type === 'secondary' ) {
+        $input_class = 'custom-switch-input';
+        $label_class = 'custom-switch-btn';
+    }
+    $classes = implode( ' ', $classes );
     ?>
 
-    <label class="custom-control custom-checkbox <?php echo $with_pro_badge ? 'custom-checkbox-badge' : ''; ?>">
-        <input type="checkbox" value="1"
-               class="custom-control-input" disabled="disabled">
-        <span class="custom-control-indicator"></span>
-        <span class="custom-control-description">
-            <?php echo wp_kses_post( $label ); ?>
-            <?php if ( $with_pro_badge ) {
-                renderProBadge();
-            } ?>
-        </span>
-    </label>
+    <div class="<?php echo esc_attr( $classes ); ?>">
+        <input type="checkbox" value="1" <?=$attr?> disabled="disabled" class="custom-switch-input custom-switch-input">
+        <label class="<?php echo esc_attr( $label_class ); ?>"></label>
+    </div>
+
+    <?php
+}
+
+function renderDummyCheckbox( $label) {
+
+    $id = 'dummy-'.random_int( 1, 1000000 );
+    ?>
+    <div class="small-checkbox d-flex align-items-center justify-content-between custom-checkbox-badge">
+        <input type="checkbox" id="<?php echo $id;?>" value="1"
+               class="small-control-input" disabled="disabled">
+        <label class="small-control small-checkbox-label" for="<?php echo esc_attr( $id ); ?>">
+            <span class="small-control-indicator"><i class="icon-check"></i></span>
+            <span class="small-control-description"><?php echo wp_kses_post( $label ); ?></span>
+        </label>
+    </div>
 
     <?php
 }
 
 function renderDummyRadioInput( $label, $checked = false ) {
+    $id = 'dummy-radio-'.random_int( 1, 1000000 );
     ?>
-
-    <label class="custom-control custom-radio">
-        <input type="radio" disabled="disabled"
-               class="custom-control-input" <?php checked( $checked ); ?>>
-        <span class="custom-control-indicator"></span>
-        <span class="custom-control-description"><?php echo wp_kses_post( $label ); ?></span>
-    </label>
-
+        <div class="radio-standard">
+            <input type="radio"
+                disabled="disabled"
+                class="custom-control-input"
+                id="<?php echo esc_attr( $id ); ?>"
+				<?php checked( $checked ); ?> />
+            <label class="standard-control radio-checkbox-label" for="<?php echo esc_attr( $id ); ?>">
+                <span class="standard-control-indicator"></span>
+                <span class="standard-control-description"><?php echo wp_kses_post( $label ); ?></span>
+            </label>
+        </div>
     <?php
 }
 
@@ -752,39 +889,33 @@ function renderDummyTagsFields( $tags = array() ) {
 
 function renderDummySelectInput( $value, $full_width = false ) {
 
-    $attr_width = $full_width ? 'width: 100%;' : '';
+    $attr_width = $full_width ? 'width: 100%;max-width: 100%;' : '';
 
     ?>
-
-    <select class="form-control form-control-sm" disabled="disabled" autocomplete="off" style="<?php esc_attr_e( $attr_width ); ?>">
-        <option value="" disabled selected><?php esc_html_e( $value ); ?></option>
-    </select>
-
-    <?php
-}
-
-function renderDummyGoogleAdsConversionLabelInputs() {
-    ?>
-
-    <div class="row mt-1 mb-2">
-        <div class="col-11 col-offset-left form-inline">
-            <label>Add conversion label </label>
-            <?php renderDummyTextInput( 'Enter conversion label' ); ?>
-            <?php renderProBadge('https://www.pixelyoursite.com/google-ads-tag'); ?>
-        </div>
-        <div class="col-1">
-            <button type="button" class="btn btn-link" role="button" data-toggle="pys-popover" data-trigger="focus"
-                    data-placement="right" data-popover_id="google_ads_conversion_label" data-original-title=""
-                    title="">
-                <i class="fa fa-info-circle" aria-hidden="true"></i>
-            </button>
-        </div>
+    <div class="select-standard-wrap">
+        <select class="select-standard pys_number_page_visit_triggers" name="" disabled="disabled" autocomplete="off" style="width: 100%;">
+            <option value="" disabled selected><?php esc_html_e( $value ); ?></option>
+        </select>
     </div>
 
     <?php
 }
 
-function renderProBadge( $url = null,$label = "Pro Feature" ) {
+function renderDummyGoogleAdsConversionLabelInputs() {
+
+?>
+        <div class="conversion-labels">
+            <p class="primary_heading mb-8">Add conversion label</p>
+
+                <div class="conversion-label">
+                    <?php renderDummyTextInput( 'Enter conversion label', 'short' ); ?>
+                </div>
+        </div>
+
+    <?php
+}
+
+function renderProBadge( $url = null,$label = "PRO Feature" ) {
 
     if ( ! $url ) {
         $url = 'https://www.pixelyoursite.com/';
@@ -795,76 +926,242 @@ function renderProBadge( $url = null,$label = "Pro Feature" ) {
     echo '&nbsp;<a href="' . esc_url( $url ) . '" target="_blank" class="badge badge-pill badge-pro">'.$label.' <i class="fa fa-external-link" aria-hidden="true"></i></a>';
 }
 
+function renderEventSetupToolBadge( $label = 'Event Setup Tool' ) {
+
+    $url = 'https://www.pixelyoursite.com/docs/event-setup-tool-guide/?utm_source=pys-free-plugin&utm_medium=EST-badge&utm_campaign=EST-badge';
+
+    echo '&nbsp;<a href="' . esc_url( $url ) . '" target="_blank" class="badge badge-pill badge-pro">'
+        . esc_html( $label ) . ' <i class="fa fa-external-link" aria-hidden="true"></i></a>';
+}
+
+
 function renderCogBadge( $label = "You need this plugin" ) {
 
-	$url = 'https://www.pixelyoursite.com/woocommerce-cost-of-goods';
+	$url = 'https://www.pixelyoursite.com/plugins/woocommerce-cost-of-goods';
 
 	echo '&nbsp;<a href="' . esc_url( $url ) . '" target="_blank" class="badge badge-pill badge-pro">'.$label.' <i class="fa fa-external-link" aria-hidden="true"></i></a>';
 }
 
 function renderSpBadge() {
-    echo '&nbsp;<a href="https://www.pixelyoursite.com/super-pack?utm_source=pixelyoursite-free-plugin&utm_medium=plugin&utm_campaign=free-plugin-super-pack" target="_blank" class="badge badge-pill badge-pro">Pro Feature <i class="fa fa-external-link" aria-hidden="true"></i></a>';
+    echo '&nbsp;<a href="https://www.pixelyoursite.com/plugins/pixelyoursite-professional/the-super-pack?utm_source=pixelyoursite-free-plugin&utm_medium=plugin&utm_campaign=free-plugin-super-pack" target="_blank" class="badge badge-pill badge-pro">PRO Feature</a>';
 }
 
 function renderHfBadge() {
-    echo '&nbsp;<a href="https://www.pixelyoursite.com/head-footer-scripts?utm_source=pixelyoursite-free-plugin&utm_medium=plugin&utm_campaign=free-plugin-head-footer" target="_blank" class="badge badge-pill badge-pro">Pro Feature <i class="fa fa-external-link" aria-hidden="true"></i></a>';
+    echo '&nbsp;<a href="https://www.pixelyoursite.com/head-footer-scripts?utm_source=pixelyoursite-free-plugin&utm_medium=plugin&utm_campaign=free-plugin-head-footer" target="_blank" class="badge badge-pill badge-pro">PRO Feature</i></a>';
 }
 
 function addMetaTagFields($pixel,$url) { ?>
-    <div class="row">
-        <div class="col-12">
-            <h4 class="label mb-3">Verify your domain:</h4>
-            <?php
-            $pixel->render_text_input_array_item('verify_meta_tag','Add the verification meta-tag there');
-            ?>
-            <?php if(!empty($url)) : ?>
-                <small class="form-text"><a href="<?=$url?>" target="_blank">Learn how to verify your domain</a></small>
-            <?php endif; ?>
-        </div>
+    <div class="mb-16 pt-20">
+        <h4 class="primary_heading mb-4">Verify your domain:</h4>
+        <?php
+        $pixel->render_text_input_array_item( 'verify_meta_tag', 'Add the verification meta-tag there' );
+        ?>
+        <?php if ( !empty( $url ) ) : ?>
+            <div class="mt-4"><a href="<?= $url ?>" target="_blank" class="link link-small">Learn how to verify your
+                    domain</a></div>
+        <?php endif; ?>
     </div>
-    <hr>
-    <?php
-    $metaTags = (array) $pixel->getOption( 'verify_meta_tag' );
-    foreach ($metaTags as $index => $val) :
-        if($index == 0) continue; ?>
-        <div class="row">
-            <div class="col-10">
-                <?php
-                $pixel->render_text_input_array_item('verify_meta_tag','Add the verification meta-tag there',$index);
-                ?>
+
+    <div class="mb-20">
+        <?php
+        $metaTags = (array) $pixel->getOption( 'verify_meta_tag' );
+        foreach ( $metaTags as $index => $val ) :
+            if ( $index == 0 ) continue; ?>
+
+            <div class="meta-block d-flex align-items-center mb-20">
+                <div class="flex-1">
+                    <?php
+                    $pixel->render_text_input_array_item( 'verify_meta_tag', 'Add the verification meta-tag there', $index );
+                    ?>
+                </div>
+
+                <div class="ml-8 d-flex align-items-center">
+                    <?php include PYS_FREE_VIEW_PATH . '/UI/button-remove-meta-row.php'; ?>
+                </div>
             </div>
-            <div class="col-2">
-                <button type="button" class="btn btn-sm remove-meta-row">
-                    <i class="fa fa-trash-o" aria-hidden="true"></i>
-                </button>
-            </div>
-        </div>
-        <hr>
-    <?php
-    endforeach;
-    ?>
-    <div class="row" id="pys_add_<?=$pixel->getSlug()?>_meta_tag_button_row">
-        <div class="col-12">
-            <button class="btn btn-sm btn-primary" type="button" id="pys_add_<?=$pixel->getSlug()?>_meta_tag">
+        <?php
+        endforeach;
+        ?>
+
+        <div class="line mb-24"></div>
+
+        <div class="row" id="pys_add_<?= $pixel->getSlug() ?>_meta_tag_button_row">
+            <button class="btn btn-primary btn-primary-type2" type="button"
+                    id="pys_add_<?= $pixel->getSlug() ?>_meta_tag">
                 Add another verification meta-tag
             </button>
             <script>
-                jQuery(document).ready(function ($) {
-
-                    $('#pys_add_<?=$pixel->getSlug()?>_meta_tag').click(function (e) {
-
+                jQuery( document ).ready( function ( $ ) {
+                    $( '#pys_add_<?=$pixel->getSlug()?>_meta_tag' ).click( function ( e ) {
                         e.preventDefault();
-                        var newField = '<div class="row"><div class="col-10">' +
-                            '<input type="text" placeholder="Add the verification meta-tag there" name="pys[<?=$pixel->getSlug()?>][verify_meta_tag][]" id="pys_facebook_meta_tag_0" value="" placeholder="" class="form-control">' +
+                        let newField = '<div class="meta-block d-flex align-items-center mb-20"><div class="flex-1">' +
+                            '<input type="text" placeholder="Add the verification meta-tag there" name="pys[<?=$pixel->getSlug()?>][verify_meta_tag][]" value="" placeholder="" class="input-standard">' +
                             '</div>' +
-                            '<div class="col-2">' +
-                            '<button type="button" class="btn btn-sm remove-meta-row"><i class="fa fa-trash-o" aria-hidden="true"></i></button>' +
-                            '</div></div><hr>';
-                        var $row = $(newField)
-                            .insertBefore('#pys_add_<?=$pixel->getSlug()?>_meta_tag_button_row')
-                    });
-                });
+                            '<div class="ml-8 d-flex align-items-center">' +
+                            '<button type="button" class="btn button-remove-row remove-meta-row"><i class="icon-delete" aria-hidden="true"></i></button>' +
+                            '</div></div>';
+                        let $row = $( newField )
+                            .insertBefore( '#pys_add_<?=$pixel->getSlug()?>_meta_tag_button_row' )
+                    } );
+                } );
             </script>
         </div>
     </div>
 <?php }
+
+
+function isGaV4($tag) {
+    if (is_array($tag)) {
+        foreach ($tag as $t) {
+            if (!is_string($t)) {
+                return false;
+            }
+            if (strpos($t, 'G') === 0) {
+                return true;
+            }
+        }
+        return false;
+    } else {
+        return strpos($tag, 'G') === 0;
+    }
+}
+
+add_action( 'wp_ajax_get_transform_title', 'PixelYourSite\getAjaxTransformTitle' );
+add_action( 'wp_ajax_nopriv_get_transform_title', 'PixelYourSite\getAjaxTransformTitle'  );
+
+function getAjaxTransformTitle()
+{
+    $event = new CustomEvent();
+    if(!empty($_POST['title'])) {
+        wp_send_json_success( array(
+            'title' => 'manual_'.$event->transformTitle($_POST['title'])
+        ) );
+    }else {
+        wp_send_json_error("Title not found");
+    }
+}
+function renderWarningMessage( $message ) {
+    ?>
+
+    <div class="warning-message">
+        <div class="warning-icon"><i class="icon-alert-triangle"></i></div>
+        <p class="message-content"> <?php echo wp_kses_post( $message ); ?></p>
+    </div>
+
+    <?php
+}
+
+/**
+ * Render platform switcher with API requirement message
+ *
+ * @param object $platform Platform object (Facebook(), GA(), Tiktok(), Pinterest())
+ * @param string $setting_key Setting key for the switcher
+ * @param string $label_template Label text template (use %s for module name placeholder)
+ * @param string $api_message API requirement message (optional, will use default if not provided)
+ * @param callable|null $plugin_check_callback Callback function to check if required plugin is active (optional)
+ * @param string $plugin_missing_message Message to display when required plugin is not active (optional)
+ */
+function renderPlatformSwitcher( $platform, $setting_key, $label_template, $api_message = '', $plugin_active = true ) {
+    // Check if required plugin is active
+    $is_disabled = !$platform->configured() || !method_exists($platform, 'isServerApiEnabled') || !$platform->isServerApiEnabled() || !$plugin_active;
+    $show_warning = $is_disabled && $plugin_active;
+
+    if ( empty( $api_message ) ) {
+        $api_message = __( 'API is required.', 'pys' );
+    }
+
+    // Get module name safely
+    $module_name = method_exists( $platform, 'getModuleName' ) ? $platform->getModuleName() : '';
+
+    // Replace %s with module name in label if placeholder exists
+    $label = !empty( $module_name ) && strpos( $label_template, '%s' ) !== false
+            ? sprintf( $label_template, $module_name )
+            : $label_template;
+
+    // Replace %s with module name in API message if placeholder exists
+    $api_message_formatted = !empty( $module_name ) && strpos( $api_message, '%s' ) !== false
+            ? sprintf( $api_message, $module_name )
+            : $api_message;
+
+    // Determine which message to show
+    $warning_message = '';
+    if ( $show_warning && !empty( $module_name ) ) {
+        $warning_message = $api_message_formatted;
+    }
+    ?>
+    <div class="d-flex align-items-center">
+        <?php renderDummySwitcher(); ?>
+        <h4 class="switcher-label secondary_heading">
+            <?php echo esc_html( $label ); ?>
+            <?php if ( !empty( $warning_message ) ) : ?>
+                <small class="text-danger">
+                    (<?php echo esc_html( $warning_message ); ?>)
+                </small>
+            <?php endif; ?>
+        </h4>
+    </div>
+    <?php
+}
+/**
+ * Render platform switcher for EDD Subscriptions tracking
+ *
+ * @param object $platform Platform object (Facebook(), GA(), Tiktok(), Pinterest())
+ */
+function renderEddSubscriptionsPlatformSwitcher( $platform ) {
+    renderPlatformSwitcher(
+            $platform,
+            'edd_track_subscriptions',
+            __( '%s track subscriptions', 'pys' ),
+            __( '%s API is required to track subscriptions.', 'pys' ),
+            isEddRecurringActive()
+    );
+}
+
+/**
+ * Render platform switcher for EDD Licenses tracking
+ *
+ * @param object $platform Platform object (Facebook(), GA(), Tiktok(), Pinterest())
+ */
+function renderEddLicensesPlatformSwitcher( $platform ) {
+    renderPlatformSwitcher(
+            $platform,
+            'edd_track_licenses',
+            __( '%s track licenses', 'pys' ),
+            __( '%s API is required to track licenses.', 'pys' ),
+            isEddSoftwareLicensingActive()
+    );
+}
+
+/**
+ * Render platform switcher for WooCommerce Subscriptions tracking
+ *
+ * @param object $platform Platform object (Facebook(), GA(), Tiktok(), Pinterest())
+ */
+function renderWooSubscriptionsPlatformSwitcher( $platform ) {
+    renderPlatformSwitcher(
+            $platform,
+            'woo_track_subscriptions',
+            __( '%s track subscriptions', 'pys' ),
+            __( '%s API is required to track subscriptions.', 'pys' ),
+            isWooCommerceSubscriptionsActive()
+    );
+}
+
+function render_info_message( $message ) {
+	?>
+    <div class="pys-info-message info-message-type2">
+        <div class="info-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20" fill="none">
+                <path d="M9.99998 14C9.58577 14 9.24999 13.6642 9.25 13.25L9.25006 9.74999C9.25007 9.33577 9.58586 8.99999 10.0001 9C10.4143 9.00001 10.7501 9.3358 10.7501 9.75001L10.75 13.25C10.75 13.6642 10.4142 14 9.99998 14Z"
+                      fill="#00527C"/>
+                <path d="M9 7C9 6.44772 9.44772 6 10 6C10.5523 6 11 6.44772 11 7C11 7.55228 10.5523 8 10 8C9.44772 8 9 7.55228 9 7Z"
+                      fill="#00527C"/>
+                <path fill-rule="evenodd" clip-rule="evenodd"
+                      d="M17 10C17 13.866 13.866 17 10 17C6.13401 17 3 13.866 3 10C3 6.13401 6.13401 3 10 3C13.866 3 17 6.13401 17 10ZM15.5 10C15.5 13.0376 13.0376 15.5 10 15.5C6.96243 15.5 4.5 13.0376 4.5 10C4.5 6.96243 6.96243 4.5 10 4.5C13.0376 4.5 15.5 6.96243 15.5 10Z"
+                      fill="#00527C"/>
+            </svg>
+        </div>
+        <p class="message-content"> <?php echo wp_kses_post( $message ); ?></p>
+    </div>
+	<?php
+}

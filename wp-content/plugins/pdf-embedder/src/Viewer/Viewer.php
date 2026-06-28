@@ -41,7 +41,9 @@ class Viewer implements ViewerInterface {
 	 */
 	public function render(): string { // phpcs:ignore Generic.Metrics.CyclomaticComplexity.TooHigh
 
-		$title = ! empty( $this->atts['title'] ) ? $this->atts['title'] : Links::make_title_from_url( $this->atts['url'] );
+		$title = ! empty( $this->atts['title'] )
+			? $this->atts['title']
+			: rawurldecode( Links::make_title_from_url( $this->atts['url'] ) );
 
 		$html_node   = '';
 		$extra_style = '';
@@ -57,6 +59,8 @@ class Viewer implements ViewerInterface {
 
 		if ( is_numeric( $this->atts['height'] ) ) {
 			$extra_style .= 'height:' . (int) $this->atts['height'] . 'px;';
+		} elseif ( $this->atts['height'] === 'auto' ) {
+			$this->atts['height'] = 'max';
 		} elseif ( $this->atts['height'] !== 'max' && $this->atts['height'] !== 'auto' ) {
 			$this->atts['height'] = 'max';
 		}
@@ -96,7 +100,17 @@ class Viewer implements ViewerInterface {
 
 		$html_node .= '</a>';
 
-		return $html_node;
+		// Wrap with the block-style class so block themes' `is-layout-constrained`
+		// applies its `max-width: var(--wp--style--global--content-size)` to the
+		// wrapper rather than directly to `.pdfemb-viewer`. viewer-core.js sizes
+		// the canvas from `divContainer.parent().width()`, which without this
+		// wrapper would return the unconstrained content-area width (~1060px)
+		// even though `.pdfemb-viewer` itself is rendered at ~620px — the canvas
+		// would then overflow its visible container. The class is also targeted
+		// by `block/build/style-index.css`, so the wrapper participates in the
+		// block's existing CSS surface. Both shortcode and block render through
+		// this method, so both get the fix.
+		return '<div class="wp-block-pdfemb-pdf-embedder-viewer">' . $html_node . '</div>';
 	}
 
 	/**
@@ -117,22 +131,6 @@ class Viewer implements ViewerInterface {
 		$is_enqueued = true;
 
 		wp_enqueue_script( 'pdfemb_embed_pdf' );
-
-		add_filter(
-			'script_loader_tag',
-			static function ( $tag, $handle, $src ) {
-				if ( $handle === 'pdfemb_embed_pdf' ) {
-					// phpcs:ignore WordPress.WP.EnqueuedResources.NonEnqueuedScript
-					$tag = '<script type="module" src="' . esc_url( $src ) . '"></script>';
-				}
-
-				return $tag;
-			},
-			10,
-			3
-		);
-
-		wp_enqueue_script( 'pdfemb_pdfjs' );
 
 		wp_enqueue_style(
 			'pdfemb_embed_pdf_css',

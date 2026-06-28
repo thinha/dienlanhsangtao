@@ -1,7 +1,10 @@
 <?php
-/*******************************************************************************
- * Copyright (c) 2019, Code Atlantic LLC
- ******************************************************************************/
+/**
+ * Interface for Batch Process
+ *
+ * @package   PopupMaker
+ * @copyright Copyright (c) 2024, Code Atlantic LLC
+ */
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -48,5 +51,4 @@ interface PUM_Interface_Batch_Process {
 	 * Defines logic to execute once batch processing is complete.
 	 */
 	public function finish();
-
 }

@@ -1,0 +1,481 @@
+:root {
+	--dmc-voucher-blue: #2b59ff;
+	--dmc-voucher-blue-dark: #2559dc;
+	--dmc-voucher-blue-light: #5680f8;
+	--dmc-voucher-border: #d8e3ff;
+	--dmc-voucher-ink: #2146ab;
+	--dmc-voucher-muted: #4d5870;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Ticket card                                                                */
+/* -------------------------------------------------------------------------- */
+
+.dmc-voucher-ticket {
+	display: flex;
+	align-items: stretch;
+	min-height: 88px;
+	border: 1px solid var(--dmc-voucher-border);
+	border-radius: 10px;
+	background: #fff;
+	box-shadow: 0 2px 10px rgba(43, 89, 255, 0.08);
+	overflow: hidden;
+}
+
+.dmc-voucher-ticket.is-active {
+	border-color: var(--dmc-voucher-blue);
+	box-shadow: 0 0 0 1px var(--dmc-voucher-blue), 0 4px 14px rgba(43, 89, 255, 0.12);
+}
+
+.dmc-voucher-ticket__stub {
+	position: relative;
+	flex: 0 0 46px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	background: linear-gradient(180deg, var(--dmc-voucher-blue-light), var(--dmc-voucher-blue-dark));
+	color: #fff;
+}
+
+.dmc-voucher-ticket__stub::after {
+	content: "";
+	position: absolute;
+	right: -6px;
+	top: 50%;
+	transform: translateY(-50%);
+	width: 12px;
+	height: 12px;
+	border-radius: 50%;
+	background: #fff;
+	box-shadow: 0 -18px 0 #fff, 0 18px 0 #fff;
+}
+
+.dmc-voucher-ticket__icon {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 22px;
+	height: 22px;
+}
+
+.dmc-voucher-ticket__icon svg {
+	display: block;
+}
+
+.dmc-voucher-ticket__body {
+	flex: 1;
+	min-width: 0;
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+	gap: 2px;
+	padding: 10px 12px 10px 14px;
+}
+
+.dmc-voucher-ticket__amount {
+	display: block;
+	font-size: 18px;
+	font-weight: 900;
+	line-height: 1.1;
+	color: var(--dmc-voucher-ink);
+	letter-spacing: -0.02em;
+}
+
+.dmc-voucher-ticket__condition {
+	display: block;
+	font-size: 11px;
+	line-height: 1.3;
+	color: var(--dmc-voucher-muted);
+}
+
+.dmc-voucher-ticket__expiry {
+	display: block;
+	margin-top: 2px;
+	font-size: 10px;
+	color: var(--dmc-voucher-muted);
+}
+
+.dmc-voucher-ticket__footer {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 10px;
+	margin-top: 8px;
+}
+
+.dmc-voucher-ticket__code {
+	flex: 0 1 auto;
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	padding: 5px 10px;
+	border: 1px solid var(--dmc-voucher-border);
+	border-radius: 6px;
+	background: #f5f8ff;
+	font-size: 11px;
+	line-height: 1.2;
+	color: var(--dmc-voucher-muted);
+	white-space: nowrap;
+}
+
+.dmc-voucher-ticket__code strong {
+	color: var(--dmc-voucher-blue);
+	font-weight: 800;
+	letter-spacing: 0.02em;
+}
+
+.dmc-voucher-ticket__btn {
+	flex: 0 0 auto;
+	border: 0;
+	border-radius: 6px;
+	background: var(--dmc-voucher-blue);
+	color: #fff;
+	font-size: 10px;
+	font-weight: 800;
+	padding: 6px 10px;
+	cursor: pointer;
+	white-space: nowrap;
+	transition: background 0.15s ease, opacity 0.15s ease;
+}
+
+.dmc-voucher-ticket__btn:hover:not(:disabled) {
+	background: var(--dmc-voucher-blue-dark);
+}
+
+.dmc-voucher-ticket__btn:disabled,
+.dmc-voucher-ticket.is-saved .dmc-voucher-ticket__btn--save {
+	background: #eef3ff;
+	color: var(--dmc-voucher-blue);
+	cursor: default;
+	opacity: 1;
+}
+
+.dmc-voucher-ticket.is-active .dmc-voucher-ticket__btn--apply {
+	background: #eef3ff;
+	color: var(--dmc-voucher-blue);
+}
+
+/* Homepage slider (Swiper freeMode) */
+.dmc-voucher-section .vouchers {
+	overflow: hidden;
+}
+
+.dmc-voucher-swiper {
+	overflow: visible;
+}
+
+.dmc-voucher-swiper .swiper-slide {
+	width: 280px;
+	max-width: 300px;
+	height: auto;
+}
+
+.dmc-voucher-swiper .dmc-voucher-ticket--homepage {
+	max-width: none;
+	width: 100%;
+}
+
+.dmc-voucher-ticket--homepage {
+	min-height: 96px;
+	max-width: 300px;
+	width: 100%;
+}
+
+.dmc-voucher-ticket--homepage .dmc-voucher-ticket__footer {
+	justify-content: flex-start;
+	gap: 8px;
+}
+
+.dmc-voucher-ticket--homepage .dmc-voucher-ticket__amount {
+	font-size: clamp(16px, 1.6vw, 20px);
+}
+
+.dmc-voucher-ticket__label {
+	display: none;
+	font-size: 11px;
+	font-weight: 800;
+	line-height: 1.2;
+	color: var(--dmc-voucher-blue);
+}
+
+/* Pick lists (product / cart) */
+.dmc-voucher-box__list {
+	display: grid;
+	grid-template-columns: 1fr;
+	gap: 10px;
+	list-style: none;
+	margin: 0;
+	padding: 0;
+}
+
+.dmc-voucher-list-item {
+	list-style: none;
+}
+
+.dmc-voucher-list-item .dmc-voucher-ticket {
+	width: 100%;
+}
+
+.dmc-voucher-ticket--product,
+.dmc-voucher-ticket--cart {
+	min-height: 92px;
+}
+
+/* Wallet */
+.dmc-voucher-wallet__card {
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+}
+
+.dmc-voucher-ticket--wallet {
+	min-height: 96px;
+}
+
+.dmc-voucher-wallet__card-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Voucher box (product / cart)                                               */
+/* -------------------------------------------------------------------------- */
+
+.dmc-voucher-box--cart {
+	margin-bottom: 16px;
+}
+
+.dmc-voucher-box {
+	margin-top: 16px;
+	padding: 14px 16px;
+	border: 1px solid var(--dmc-voucher-border);
+	border-radius: 12px;
+	background: #fff;
+	box-shadow: 0 2px 10px rgba(43, 89, 255, 0.05);
+}
+
+.pl-detail__info .dmc-voucher-box {
+	margin-top: 12px;
+	margin-bottom: 4px;
+}
+
+.dmc-voucher-box__head {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 10px;
+	margin-bottom: 12px;
+}
+
+.dmc-voucher-box__title {
+	font-size: 14px;
+	font-weight: 800;
+	color: var(--dmc-voucher-ink);
+	text-transform: uppercase;
+	letter-spacing: 0.02em;
+}
+
+.dmc-voucher-box__best {
+	border: 0;
+	border-radius: 6px;
+	background: #eef3ff;
+	color: var(--dmc-voucher-blue);
+	font-size: 11px;
+	font-weight: 700;
+	padding: 6px 10px;
+	cursor: pointer;
+	white-space: nowrap;
+}
+
+.dmc-voucher-box__best:hover {
+	background: #dfe8ff;
+}
+
+.dmc-voucher-box__form {
+	display: flex;
+	gap: 8px;
+	margin-bottom: 12px;
+}
+
+.dmc-voucher-box__input {
+	flex: 1;
+	min-height: 40px;
+	border: 1px solid var(--dmc-voucher-border);
+	border-radius: 8px;
+	padding: 0 12px;
+	font-size: 13px;
+}
+
+.dmc-voucher-box__apply,
+.dmc-voucher-box__remove {
+	border: 0;
+	border-radius: 8px;
+	background: var(--dmc-voucher-blue);
+	color: #fff;
+	font-size: 12px;
+	font-weight: 700;
+	padding: 0 16px;
+	min-height: 40px;
+	cursor: pointer;
+}
+
+.dmc-voucher-box__remove {
+	background: #eef3ff;
+	color: var(--dmc-voucher-blue);
+}
+
+.dmc-voucher-box__active {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+	margin-bottom: 12px;
+	padding: 8px 10px;
+	border-radius: 8px;
+	background: #f0f5ff;
+	font-size: 12px;
+	color: var(--dmc-voucher-ink);
+	font-weight: 600;
+}
+
+.dmc-voucher-box__note {
+	margin: 10px 0 0;
+	font-size: 12px;
+	color: #227a1b;
+}
+
+.dmc-voucher-box__note.is-error {
+	color: #b32d2e;
+}
+
+.dmc-voucher-box--cart .dmc-voucher-box__remove {
+	border: 1px solid var(--dmc-voucher-border);
+	background: #fff;
+	color: var(--dmc-voucher-muted);
+	box-shadow: none;
+}
+
+.dmc-voucher-box--cart .dmc-voucher-box__remove:hover:not(:disabled) {
+	border-color: #fca5a5;
+	color: #dc2626;
+	background: #fff5f5;
+}
+
+.dmc-voucher-box--cart.is-loading {
+	opacity: 0.7;
+	pointer-events: none;
+}
+
+.dmc-cart-voucher-discount {
+	color: var(--dmc-voucher-blue) !important;
+	font-weight: 800;
+}
+
+.dmc-voucher-empty {
+	grid-column: 1 / -1;
+	font-size: 13px;
+	color: var(--dmc-voucher-muted);
+}
+
+.dmc-voucher-wallet__notice {
+	margin: 0 0 12px;
+	font-size: 12px;
+	color: #227a1b;
+}
+
+.dmc-voucher-wallet__notice.is-error {
+	color: #b32d2e;
+}
+
+/* Price rows */
+.pl-price__value--voucher {
+	color: var(--dmc-voucher-blue) !important;
+}
+
+.pl-price__row--voucher-main,
+.pl-price__row--after-voucher {
+	margin-top: 6px;
+}
+
+.pl-price__value--after-voucher,
+.pl-price__value--after-voucher .amount {
+	color: var(--dmc-voucher-blue) !important;
+	font-size: clamp(20px, 2.4vw, 26px) !important;
+	font-weight: 800 !important;
+}
+
+.pl-price__row--voucher .pl-price__value--voucher,
+.pl-price__row--voucher .pl-price__value--voucher .amount {
+	font-weight: 700 !important;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Responsive                                                                 */
+/* -------------------------------------------------------------------------- */
+
+@media (max-width: 1099px) {
+	.dmc-voucher-swiper .swiper-slide {
+		width: min(280px, calc(100vw - 64px));
+	}
+
+	.dmc-voucher-ticket--homepage {
+		flex: none;
+		max-width: none;
+		width: 100%;
+		min-height: 118px;
+	}
+
+	.dmc-voucher-ticket--homepage .dmc-voucher-ticket__stub {
+		flex-basis: 34px;
+	}
+
+	.dmc-voucher-ticket--homepage .dmc-voucher-ticket__amount {
+		font-size: clamp(11px, 2.8vw, 14px);
+	}
+
+	.dmc-voucher-ticket--homepage .dmc-voucher-ticket__condition {
+		font-size: 8px;
+	}
+
+	.dmc-voucher-ticket--homepage .dmc-voucher-ticket__label {
+		display: block;
+		font-size: 9px;
+	}
+
+	.dmc-voucher-ticket--homepage .dmc-voucher-ticket__footer {
+		flex-direction: column;
+		align-items: stretch;
+		margin-top: 6px;
+	}
+
+	.dmc-voucher-ticket--homepage .dmc-voucher-ticket__btn {
+		width: 100%;
+		border-radius: 99px;
+		padding: 5px 8px;
+		font-size: 9px;
+	}
+}
+
+@media (max-width: 767px) {
+	.dmc-voucher-box__form {
+		flex-direction: column;
+	}
+
+	.dmc-voucher-box__apply {
+		width: 100%;
+	}
+
+	.dmc-voucher-ticket__footer {
+		flex-wrap: nowrap;
+	}
+
+	.dmc-voucher-ticket__code {
+		flex: 0 1 auto;
+		max-width: none;
+	}
+
+	.dmc-voucher-ticket__btn {
+		flex-shrink: 0;
+	}
+}

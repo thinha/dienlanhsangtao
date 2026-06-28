@@ -14,6 +14,8 @@
   "woo_content_id_prefix": "text",
   "woo_content_id_suffix": "text",
   "woo_content_id_logic": "radio",
+  "woo_wpml_unified_id": "checkbox",
+
   "woo_purchase_enabled": "checkbox",
   "woo_initiate_checkout_enabled": "checkbox",
   "woo_remove_from_cart_enabled": "checkbox",
@@ -52,15 +54,6 @@
   "test_api_event_code": "array",
   "test_api_event_code_expiration_at": "array",
 
-  "complete_registration_event_enabled" : "checkbox",
-  "woo_complete_registration_percent_value": "text",
-  "woo_complete_registration_global_value": "text",
-  "woo_complete_registration_fire_every_time": "checkbox",
-  "woo_complete_registration_use_custom_value": "checkbox",
-  "woo_complete_registration_custom_value": "radio",
-  "woo_complete_registration_custom_value_old": "radio",
-  "woo_complete_registration_send_from_server": "checkbox",
-
   "verify_meta_tag": "array_textarea",
 
   "automatic_event_form_enabled":  "checkbox",
@@ -70,5 +63,9 @@
   "automatic_event_comment_enabled":  "checkbox",
   "automatic_event_scroll_enabled":  "checkbox",
   "automatic_event_time_on_page_enabled":  "checkbox",
-  "automatic_event_search_enabled":  "checkbox"
+  "automatic_event_search_enabled":  "checkbox",
+
+  "disable_noscript": "checkbox",
+  "enabled_medical": "checkbox",
+  "do_not_track_medical_param": "multi_select"
 }

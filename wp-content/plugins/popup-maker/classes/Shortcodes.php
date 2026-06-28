@@ -1,7 +1,10 @@
 <?php
-/*******************************************************************************
- * Copyright (c) 2019, Code Atlantic LLC
- ******************************************************************************/
+/**
+ * Shortcodes class
+ *
+ * @package   PopupMaker
+ * @copyright Copyright (c) 2024, Code Atlantic LLC
+ */
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -22,7 +25,7 @@ class PUM_Shortcodes {
 	/**
 	 * @var array Holds array of registered $shortcode_tags => $shortcode_objects.
 	 */
-	private $shortcodes = array();
+	private $shortcodes = [];
 
 	/**
 	 * Main PUM_Shortcodes Instance
@@ -31,7 +34,7 @@ class PUM_Shortcodes {
 	 */
 	public static function instance() {
 		if ( ! isset( self::$instance ) && ! ( self::$instance instanceof PUM_Shortcodes ) ) {
-			self::$instance = new self;
+			self::$instance = new self();
 		}
 
 		return self::$instance;
@@ -65,5 +68,4 @@ class PUM_Shortcodes {
 	public function get_shortcode( $tag ) {
 		return isset( $this->shortcodes[ $tag ] ) ? $this->shortcodes[ $tag ] : false;
 	}
-
 }

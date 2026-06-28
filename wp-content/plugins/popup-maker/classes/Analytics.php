@@ -1,7 +1,10 @@
 <?php
-/*******************************************************************************
- * Copyright (c) 2019, Code Atlantic LLC
- ******************************************************************************/
+/**
+ * Analytics class
+ *
+ * @package   PopupMaker
+ * @copyright Copyright (c) 2024, Code Atlantic LLC
+ */
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -20,13 +23,15 @@ class PUM_Analytics {
 			return;
 		}
 
-		add_action( 'rest_api_init', array( __CLASS__, 'register_endpoints' ) );
-		add_action( 'wp_ajax_pum_analytics', array( __CLASS__, 'ajax_request' ) );
-		add_action( 'wp_ajax_nopriv_pum_analytics', array( __CLASS__, 'ajax_request' ) );
-		add_filter( 'pum_vars', array( __CLASS__, 'pum_vars' ) );
+		add_action( 'rest_api_init', [ __CLASS__, 'register_endpoints' ] );
+		add_action( 'wp_ajax_pum_analytics', [ __CLASS__, 'ajax_request' ] );
+		add_action( 'wp_ajax_nopriv_pum_analytics', [ __CLASS__, 'ajax_request' ] );
+		add_filter( 'pum_vars', [ __CLASS__, 'pum_vars' ] );
 	}
 
 	/**
+	 * Checks whether analytics is enabled.
+	 *
 	 * @return bool
 	 */
 	public static function analytics_enabled() {
@@ -36,18 +41,36 @@ class PUM_Analytics {
 	}
 
 	/**
-	 * @param $event
+	 * Get a list of key pairs for each event type.
+	 * Internally used only for meta keys.
+	 *
+	 * Example returns [[open,opened],[conversion,conversion]].
+	 *
+	 * Usage examples:
+	 * - popup_open_count, popup_last_opened
+	 * - popup_conversion_count, popup_last_conversion
+	 *
+	 * @param string $event Event key.
 	 *
 	 * @return mixed
 	 */
 	public static function event_keys( $event ) {
-		$keys = array( $event, rtrim( $event, 'e' ) . 'ed' );
+		$keys = [ $event, rtrim( $event, 'e' ) . 'ed' ];
 
 		if ( 'conversion' === $event ) {
 			$keys[1] = 'conversion';
 		}
 
 		return apply_filters( 'pum_analytics_event_keys', $keys, $event );
+	}
+
+	/**
+	 * Returns an array of valid event types.
+	 *
+	 * @return string[]
+	 */
+	public static function valid_events() {
+		return apply_filters( 'pum_analytics_valid_events', [ 'open', 'conversion' ] );
 	}
 
 	/**
@@ -59,19 +82,17 @@ class PUM_Analytics {
 	 *
 	 * @param array $args
 	 */
-	public static function track( $args = array() ) {
-		if ( empty ( $args['pid'] ) || $args['pid'] <= 0 ) {
+	public static function track( $args = [] ) {
+		// TODO: Remove this to support beacon for CTA conversions.
+		if ( empty( $args['pid'] ) || $args['pid'] <= 0 ) {
 			return;
 		}
-
-//		$uuid = isset( $_COOKIE['__pum'] ) ? sanitize_text_field( $_COOKIE['__pum'] ) : false;
-//		$session = $uuid && isset( $_COOKIE[ $uuid ] ) ? PUM_Utils_Array::safe_json_decode( $_COOKIE[ $uuid ] ) : false;
 
 		$event = sanitize_text_field( $args['event'] );
 
 		$popup = pum_get_popup( $args['pid'] );
 
-		if ( ! pum_is_popup( $popup ) || ! in_array( $event, apply_filters( 'pum_analytics_valid_events', array( 'open', 'conversion' ) ) ) ) {
+		if ( ! pum_is_popup( $popup ) || ! in_array( $event, self::valid_events(), true ) ) {
 			return;
 		}
 
@@ -91,11 +112,15 @@ class PUM_Analytics {
 	 */
 	public static function ajax_request() {
 
-		$args = wp_parse_args( $_REQUEST, array(
-			'event'  => null,
-			'pid'    => null,
-			'method' => null,
-		) );
+		$args = wp_parse_args(
+			// phpcs:ignore WordPress.Security.NonceVerification.Recommended
+			$_REQUEST,
+			[
+				'event'  => null,
+				'pid'    => null,
+				'method' => null,
+			]
+		);
 
 		self::track( $args );
 
@@ -112,7 +137,6 @@ class PUM_Analytics {
 				self::serve_no_content();
 				break;
 		}
-
 	}
 
 	/**
@@ -124,7 +148,7 @@ class PUM_Analytics {
 		$args = $request->get_params();
 
 		if ( ! $args || empty( $args['pid'] ) ) {
-			return new WP_Error( 'missing_params', __( 'Missing Parameters.' ), array( 'status' => 404 ) );
+			return new WP_Error( 'missing_params', __( 'Missing Parameters.', 'default' ), [ 'status' => 404 ] );
 		}
 
 		self::track( $args );
@@ -144,28 +168,64 @@ class PUM_Analytics {
 	}
 
 	/**
+	 * Sanitize eventData parameter (matches Pro's approach).
+	 *
+	 * Decodes JSON string to array if needed.
+	 *
+	 * @param mixed $value EventData value (JSON string or array).
+	 *
+	 * @return array Decoded eventData as array.
+	 */
+	public static function sanitize_event_data( $value ) {
+		// If already an array, return as-is.
+		if ( is_array( $value ) ) {
+			return $value;
+		}
+
+		// Decode JSON string to array (matches Pro's Request::parse_tracking_data).
+		if ( is_string( $value ) ) {
+			$decoded = json_decode( $value, true );
+			return is_array( $decoded ) ? $decoded : [];
+		}
+
+		return [];
+	}
+
+	/**
 	 * Registers the analytics endpoints
 	 */
 	public static function register_endpoints() {
-		register_rest_route( self::get_analytics_namespace(), self::get_analytics_route(), apply_filters( 'pum_analytics_rest_route_args', array(
-			'methods'             => 'GET',
-			'callback'            => array( __CLASS__, 'analytics_endpoint' ),
-			'permission_callback' => '__return_true',
-			'args'                => array(
-				'event' => array(
-					'required'    => true,
-					'description' => __( 'Event Type', 'popup-maker' ),
-					'type'        => 'string',
-				),
-				'pid'   => array(
-					'required'            => true,
-					'description'         => __( 'Popup ID', 'popup-maker' ),
-					'type'                => 'integer',
-					'validation_callback' => array( __CLASS__, 'endpoint_absint' ),
-					'sanitize_callback'   => 'absint',
-				),
-			),
-		) ) );
+		register_rest_route(
+			self::get_analytics_namespace(),
+			self::get_analytics_route(),
+			apply_filters(
+				'pum_analytics_rest_route_args',
+				[
+					'methods'             => [ 'GET', 'POST' ],
+					'callback'            => [ __CLASS__, 'analytics_endpoint' ],
+					'permission_callback' => '__return_true',
+					'args'                => [
+						'event'     => [
+							'required'    => true,
+							'description' => __( 'Event Type', 'popup-maker' ),
+							'type'        => 'string',
+						],
+						'pid'       => [
+							'required'            => true,
+							'description'         => __( 'Popup ID', 'popup-maker' ),
+							'type'                => 'integer',
+							'validation_callback' => [ __CLASS__, 'endpoint_absint' ],
+							'sanitize_callback'   => 'absint',
+						],
+						'eventData' => [
+							'required'          => false,
+							'description'       => __( 'Event metadata (JSON or array)', 'popup-maker' ),
+							'sanitize_callback' => [ __CLASS__, 'sanitize_event_data' ],
+						],
+					],
+				]
+			)
+		);
 	}
 
 	/**
@@ -174,8 +234,9 @@ class PUM_Analytics {
 	 * @param array $vars The current pum_vars.
 	 * @return array The updates pum_vars
 	 */
-	public static function pum_vars( $vars = array() ) {
-		$vars['analytics_route'] = self::get_analytics_route();
+	public static function pum_vars( $vars = [] ) {
+		$vars['analytics_enabled'] = self::analytics_enabled();
+		$vars['analytics_route']   = self::get_analytics_route();
 		if ( function_exists( 'rest_url' ) ) {
 			$vars['analytics_api'] = esc_url_raw( rest_url( self::get_analytics_namespace() ) );
 		} else {
@@ -223,7 +284,7 @@ class PUM_Analytics {
 	public static function customize_endpoint_value( $value = '' ) {
 		$bypass_adblockers = pum_get_option( 'bypass_adblockers', false );
 		if ( true === $bypass_adblockers || 1 === intval( $bypass_adblockers ) ) {
-			switch ( pum_get_option( 'adblock_bypass_url_method', 'random' ) ) {
+			switch ( pum_get_option( 'adblock_bypass_url_method', 'custom' ) ) {
 				case 'custom':
 					$value = preg_replace( '/[^a-z0-9]+/', '-', pum_get_option( 'adblock_bypass_custom_filename', $value ) );
 					break;
@@ -244,7 +305,9 @@ class PUM_Analytics {
 		$gif = self::get_file( Popup_Maker::$DIR . 'assets/images/beacon.gif' );
 		header( 'Content-Type: image/gif' );
 		header( 'Content-Length: ' . strlen( $gif ) );
-		exit( $gif );
+		// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+		echo $gif;
+		exit;
 	}
 
 	/**
@@ -258,10 +321,12 @@ class PUM_Analytics {
 			$path = realpath( $path );
 		}
 
+		// phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
 		if ( ! $path || ! @is_file( $path ) ) {
 			return '';
 		}
 
+		// phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
 		return @file_get_contents( $path );
 	}
 
@@ -269,7 +334,7 @@ class PUM_Analytics {
 	 * Returns a 204 no content header.
 	 */
 	public static function serve_no_content() {
-		header( "HTTP/1.0 204 No Content" );
+		header( 'HTTP/1.0 204 No Content' );
 		header( 'Content-Type: image/gif' );
 		header( 'Content-Length: 0' );
 		exit;
@@ -282,9 +347,8 @@ class PUM_Analytics {
 	 */
 	public static function serve_json( $data = 0 ) {
 		header( 'Content-Type: application/json' );
+		// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
 		echo PUM_Utils_Array::safe_json_encode( $data );
 		exit;
 	}
-
 }
-

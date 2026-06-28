@@ -1,7 +1,10 @@
 <?php
-/*******************************************************************************
- * Copyright (c) 2020, WP Popup Maker
- ******************************************************************************/
+/**
+ * Interface for Integration
+ *
+ * @package   PopupMaker
+ * @copyright Copyright (c) 2024, Code Atlantic LLC
+ */
 
 interface PUM_Interface_Integration {
 
@@ -14,5 +17,4 @@ interface PUM_Interface_Integration {
 	 * @return bool
 	 */
 	public function enabled();
-
 }

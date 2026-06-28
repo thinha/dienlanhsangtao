@@ -1,10 +1,14 @@
 <?php
+/**
+ * Subscribers DB Handler
+ *
+ * @package   PopupMaker
+ * @copyright Copyright (c) 2024, Code Atlantic LLC
+ *
+ * phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery
+ */
+
 // Exit if accessed directly
-
-/*******************************************************************************
- * Copyright (c) 2019, Code Atlantic LLC
- ******************************************************************************/
-
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
@@ -33,7 +37,7 @@ class PUM_DB_Subscribers extends PUM_Abstract_Database {
 	 * Get columns and formats
 	 */
 	public function get_columns() {
-		return array(
+		return [
 			'ID'           => '%d',
 			'uuid'         => '%s',
 			'popup_id'     => '%d',
@@ -46,14 +50,14 @@ class PUM_DB_Subscribers extends PUM_Abstract_Database {
 			'consent_args' => '%s',
 			'consent'      => '%s',
 			'created'      => '%s',
-		);
+		];
 	}
 
 	/**
 	 * Get default column values
 	 */
 	public function get_column_defaults() {
-		return array(
+		return [
 			'uuid'         => '',
 			'popup_id'     => 0,
 			'email_hash'   => '',
@@ -65,8 +69,7 @@ class PUM_DB_Subscribers extends PUM_Abstract_Database {
 			'consent_args' => '',
 			'consent'      => 'no',
 			'created'      => current_time( 'mysql', 0 ),
-		);
-
+		];
 	}
 
 	/**
@@ -77,7 +80,7 @@ class PUM_DB_Subscribers extends PUM_Abstract_Database {
 		global $wpdb;
 
 		if ( ! function_exists( 'dbDelta' ) ) {
-			require_once( ABSPATH . 'wp-admin/includes/upgrade.php' );
+			require_once ABSPATH . 'wp-admin/includes/upgrade.php';
 		}
 
 		$charset_collate = $wpdb->get_charset_collate();
@@ -92,7 +95,7 @@ class PUM_DB_Subscribers extends PUM_Abstract_Database {
 		 * - [x] SQL keywords, like CREATE TABLE and UPDATE, must be uppercase.
 		 * - [x] You must specify the length of all fields that accept a length parameter. int(11), for example.
 		 */
-		$sql = "CREATE TABLE " . $this->table_name() . " (
+		$sql = 'CREATE TABLE ' . $this->table_name() . " (
 			ID bigint(20) NOT NULL AUTO_INCREMENT,
 			email_hash varchar(32) NOT NULL,
 			popup_id bigint(20) NOT NULL,
@@ -113,39 +116,54 @@ class PUM_DB_Subscribers extends PUM_Abstract_Database {
 		) $charset_collate;";
 
 		$results = dbDelta( $sql );
-		PUM_Utils_Logging::instance()->log( 'Subscriber table results: ' . implode( ',', $results ) );
+
+		// Strip prefix to ensure it doesn't leak unintentionally.
+		$results = str_replace( $wpdb->prefix, '', implode( ',', $results ) );
+
+		pum_log_message( 'Subscriber table results: ' . $results );
 
 		$previous_error = $wpdb->last_error; // The show tables query will erase the last error. So, record it now in case we need it.
-		if ( $wpdb->get_var("SHOW TABLES LIKE '{$this->table_name()}'") !== $this->table_name() ) {
-			PUM_Utils_Logging::instance()->log( "Subscriber table exists check failed! Last error from wpdb: $previous_error." );
+
+		if ( $this->wp_version >= 6.2 ) {
+			$table_found = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $this->table_name() ) );
+		} else {
+			// Ignored because table names need string quotes for SHOW TABLES LIKE, not identifier backticks.
+			// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+			$table_found = $wpdb->get_var( "SHOW TABLES LIKE '{$this->table_name()}'" );
+		}
+
+		if ( $this->table_name() !== $table_found ) {
+			pum_log_message( 'Subscriber table exists check failed! Last error from wpdb: ' . str_replace( $wpdb->prefix, '', $previous_error ) );
 		}
 
 		update_option( $this->table_name . '_db_version', $this->version );
 	}
 
 	public function get_by_email( $email = '' ) {
-
 	}
 
 
-	public function query( $args = array(), $return_type = 'OBJECT' ) {
+	public function query( $args = [], $return_type = 'OBJECT' ) {
 		global $wpdb;
 
-		$args = wp_parse_args( $args, array(
-			'fields'  => '*',
-			'page'    => null,
-			'limit'   => null,
-			'offset'  => null,
-			's'       => null,
-			'orderby' => null,
-			'order'   => null,
-		) );
+		$args = wp_parse_args(
+			$args,
+			[
+				'fields'  => '*',
+				'page'    => null,
+				'limit'   => null,
+				'offset'  => null,
+				's'       => null,
+				'orderby' => null,
+				'order'   => null,
+			]
+		);
 
 		$columns = $this->get_columns();
 
 		$fields = $args['fields'];
 
-		if ( $fields == '*' ) {
+		if ( '*' === $fields ) {
 			$fields = array_keys( $columns );
 		} else {
 			$fields = explode( ',', $args['fields'] );
@@ -159,21 +177,20 @@ class PUM_DB_Subscribers extends PUM_Abstract_Database {
 		$query = "SELECT `$select_fields` FROM {$this->table_name()}";
 
 		// Set up $values array for wpdb::prepare
-		$values = array();
+		$values = [];
 
 		// Define an empty WHERE clause to start from.
-		$where = "WHERE 1=1";
+		$where = 'WHERE 1=1';
 
 		// Build search query.
 		if ( $args['s'] && ! empty( $args['s'] ) ) {
-
 			$search = wp_unslash( trim( $args['s'] ) );
 
-			$search_where = array();
+			$search_where = [];
 
 			foreach ( $columns as $key => $type ) {
-				if ( in_array( $key, $fields ) ) {
-					if ( $type == '%s' || ( $type == '%d' && is_numeric( $search ) ) ) {
+				if ( in_array( $key, $fields, true ) ) {
+					if ( '%s' === $type || ( '%d' === $type && is_numeric( $search ) ) ) {
 						$values[]       = '%' . $wpdb->esc_like( $search ) . '%';
 						$search_where[] = "`$key` LIKE '%s'";
 					}
@@ -188,24 +205,24 @@ class PUM_DB_Subscribers extends PUM_Abstract_Database {
 		$query .= " $where";
 
 		if ( ! empty( $args['orderby'] ) ) {
-			$query    .= " ORDER BY %s";
+			$query   .= ' ORDER BY %i';
 			$values[] = wp_unslash( trim( $args['orderby'] ) );
 
 			switch ( $args['order'] ) {
 				case 'asc':
 				case 'ASC':
-					$query .= " ASC";
+					$query .= ' ASC';
 					break;
 				case 'desc':
 				case 'DESC':
 				default:
-					$query .= " DESC";
+					$query .= ' DESC';
 					break;
 			}
 		}
 
 		if ( ! empty( $args['limit'] ) ) {
-			$query    .= " LIMIT %d";
+			$query   .= ' LIMIT %d';
 			$values[] = absint( $args['limit'] );
 		}
 
@@ -215,14 +232,16 @@ class PUM_DB_Subscribers extends PUM_Abstract_Database {
 		}
 
 		if ( ! empty( $args['offset'] ) ) {
-			$query    .= " OFFSET %d";
+			$query   .= ' OFFSET %d';
 			$values[] = absint( $args['offset'] );
 		}
 
-		if ( strpos( $query, '%s' ) || strpos( $query, '%d' ) ) {
+		if ( strpos( $query, '%s' ) || strpos( $query, '%d' ) || strpos( $query, '%i' ) ) {
+			// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
 			$query = $wpdb->prepare( $query, $values );
 		}
 
+		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
 		return $wpdb->get_results( $query, $return_type );
 	}
 

@@ -6,10 +6,6 @@
  * @package WooCommerce\Interface
  */
 
-if ( ! defined( 'ABSPATH' ) ) {
-	exit;
-}
-
 /**
  * WC Product Data Store Interface
  *
@@ -52,6 +48,7 @@ interface WC_Product_Data_Store_Interface {
 	 * @return int
 	 */
 	public function get_product_id_by_sku( $sku );
+
 
 	/**
 	 * Returns an array of IDs of products that have sales starting soon.

@@ -1,7 +1,10 @@
 <?php
-/*******************************************************************************
- * Copyright (c) 2019, Code Atlantic LLC
- ******************************************************************************/
+/**
+ * Config Utility
+ *
+ * @package   PopupMaker
+ * @copyright Copyright (c) 2024, Code Atlantic LLC
+ */
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -13,11 +16,10 @@ if ( ! defined( 'ABSPATH' ) ) {
 class PUM_Utils_Config {
 
 	/**
-	 * Config
+	 * Load configuration file
 	 *
-	 * @param $file_name
-	 *
-	 * @return mixed
+	 * @param string $file_name Configuration file name (without .php extension)
+	 * @return array<string, mixed> Configuration array or empty array if file not found
 	 */
 	public static function load( $file_name ) {
 
@@ -26,7 +28,7 @@ class PUM_Utils_Config {
 		$file = plugin_dir_path( __DIR__ ) . DIRECTORY_SEPARATOR . 'configs' . DIRECTORY_SEPARATOR . $file_name . '.php';
 
 		if ( ! file_exists( $file ) ) {
-			return array();
+			return [];
 		}
 
 		return include $file;

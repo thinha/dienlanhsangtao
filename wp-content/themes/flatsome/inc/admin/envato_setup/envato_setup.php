@@ -20,6 +20,7 @@ if ( ! class_exists( 'Envato_Theme_Setup_Wizard' ) ) {
 	/**
 	 * Envato_Theme_Setup_Wizard class
 	 */
+	#[\AllowDynamicProperties]
 	class Envato_Theme_Setup_Wizard {
 
 		/**
@@ -1746,28 +1747,28 @@ if ( ! class_exists( 'Envato_Theme_Setup_Wizard' ) ) {
 			}
 
 			// set the blog page and the home page.
-			$shoppage = get_page_by_title( 'Shop' );
+			$shoppage = flatsome_get_page_by_title( 'Shop' );
 			if ( $shoppage ) {
 				update_option( 'woocommerce_shop_page_id',$shoppage->ID );
 			}
-			$shoppage = get_page_by_title( 'Cart' );
+			$shoppage = flatsome_get_page_by_title( 'Cart' );
 			if ( $shoppage ) {
 				update_option( 'woocommerce_cart_page_id',$shoppage->ID );
 			}
-			$shoppage = get_page_by_title( 'Checkout' );
+			$shoppage = flatsome_get_page_by_title( 'Checkout' );
 			if ( $shoppage ) {
 				update_option( 'woocommerce_checkout_page_id',$shoppage->ID );
 			}
-			$shoppage = get_page_by_title( 'My Account' );
+			$shoppage = flatsome_get_page_by_title( 'My Account' );
 			if ( $shoppage ) {
 				update_option( 'woocommerce_myaccount_page_id',$shoppage->ID );
 			}
-			$homepage = get_page_by_title( 'Classic Shop' );
+			$homepage = flatsome_get_page_by_title( 'Classic Shop' );
 			if ( $homepage ) {
 				update_option( 'page_on_front', $homepage->ID );
 				update_option( 'show_on_front', 'page' );
 			}
-			$blogpage = get_page_by_title( 'Blog' );
+			$blogpage = flatsome_get_page_by_title( 'Blog' );
 			if ( $blogpage ) {
 				update_option( 'page_for_posts', $blogpage->ID );
 				update_option( 'show_on_front', 'page' );

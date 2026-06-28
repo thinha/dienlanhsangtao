@@ -9,6 +9,7 @@
  */
 
 use Automattic\Jetpack\Constants;
+use Automattic\WooCommerce\StoreApi\Utilities\LocalPickupUtils;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -137,6 +138,9 @@ class WC_Shipping {
 
 		// For backwards compatibility with 2.5.x we load any ENABLED legacy shipping methods here.
 		$maybe_load_legacy_methods = array( 'flat_rate', 'free_shipping', 'international_delivery', 'local_delivery', 'local_pickup' );
+
+		// Prime caches to reduce future queries.
+		wp_prime_option_caches( array_map( fn( string $method ) => sprintf( 'woocommerce_%s_settings', $method ), $maybe_load_legacy_methods ) );
 
 		foreach ( $maybe_load_legacy_methods as $method ) {
 			$options = get_option( 'woocommerce_' . $method . '_settings' );
@@ -312,64 +316,105 @@ class WC_Shipping {
 
 		$package['rates'] = array();
 
-		// If the package is not shippable, e.g. trying to ship to an invalid country, do not calculate rates.
-		if ( $this->is_package_shippable( $package ) ) {
-			// Check if we need to recalculate shipping for this package.
-			$package_to_hash = $package;
+		// If the package is not shippable, e.g. trying to ship to an invalid country, do not calculate rates. We can return
+		// local pickup rates here however since those are not shipped.
+		$is_shippable = $this->is_package_shippable( $package );
 
-			// Remove data objects so hashes are consistent.
-			foreach ( $package_to_hash['contents'] as $item_id => $item ) {
-				unset( $package_to_hash['contents'][ $item_id ]['data'] );
+		// Check if we need to recalculate shipping for this package.
+		$package_to_hash = $package;
+
+		// Remove data objects so hashes are consistent.
+		foreach ( $package_to_hash['contents'] as $item_id => $item ) {
+			unset( $package_to_hash['contents'][ $item_id ]['data'] );
+		}
+
+		// Get rates stored in the WC session data for this package.
+		$wc_session_key = 'shipping_for_package_' . $package_key;
+		$stored_rates   = WC()->session->get( $wc_session_key );
+
+		// Calculate the hash for this package so we can tell if it's changed since last calculation.
+		$package_hash = 'wc_ship_' . md5( wp_json_encode( $package_to_hash ) . WC_Cache_Helper::get_transient_version( 'shipping' ) );
+
+		if ( ! is_array( $stored_rates ) || $package_hash !== $stored_rates['package_hash'] || 'yes' === get_option( 'woocommerce_shipping_debug_mode', 'no' ) ) {
+			foreach ( $this->load_shipping_methods( $package ) as $shipping_method ) {
+				// If the package is not shippable and the shipping method does not support local pickup, skip it.
+				if ( ! $is_shippable && ! LocalPickupUtils::is_local_pickup_method( $shipping_method->id ) ) {
+					continue;
+				}
+
+				if ( ! $shipping_method->supports( 'shipping-zones' ) || $shipping_method->get_instance_id() ) {
+					/**
+					 * Fires before getting shipping rates for a package.
+					 *
+					 * @since 4.3.0
+					 * @param array $package Package of cart items.
+					 * @param WC_Shipping_Method $shipping_method Shipping method instance.
+					 */
+					do_action( 'woocommerce_before_get_rates_for_package', $package, $shipping_method );
+
+					// Use + instead of array_merge to maintain numeric keys.
+					$package['rates'] = $package['rates'] + $shipping_method->get_rates_for_package( $package );
+
+					/**
+					 * Fires after getting shipping rates for a package.
+					 *
+					 * @since 4.3.0
+					 * @param array $package Package of cart items.
+					 * @param WC_Shipping_Method $shipping_method Shipping method instance.
+					 */
+					do_action( 'woocommerce_after_get_rates_for_package', $package, $shipping_method );
+				}
 			}
 
-			// Get rates stored in the WC session data for this package.
-			$wc_session_key = 'shipping_for_package_' . $package_key;
-			$stored_rates   = WC()->session->get( $wc_session_key );
+			// Hide shipping rates when free shipping is available.
+			if ( 'yes' === get_option( 'woocommerce_shipping_hide_rates_when_free', 'no' ) ) {
+				$free_shipping = array();
+				$local_pickup  = array();
 
-			// Calculate the hash for this package so we can tell if it's changed since last calculation.
-			$package_hash = 'wc_ship_' . md5( wp_json_encode( $package_to_hash ) . WC_Cache_Helper::get_transient_version( 'shipping' ) );
+				foreach ( $package['rates'] as $rate ) {
+					if ( 'free_shipping' === $rate->method_id ) {
+						$free_shipping[ $rate->id ] = $rate;
+						continue;
+					}
 
-			if ( ! is_array( $stored_rates ) || $package_hash !== $stored_rates['package_hash'] || 'yes' === get_option( 'woocommerce_shipping_debug_mode', 'no' ) ) {
-				foreach ( $this->load_shipping_methods( $package ) as $shipping_method ) {
-					if ( ! $shipping_method->supports( 'shipping-zones' ) || $shipping_method->get_instance_id() ) {
-						/**
-						 * Fires before getting shipping rates for a package.
-						 *
-						 * @since 4.3.0
-						 * @param array $package Package of cart items.
-						 * @param WC_Shipping_Method $shipping_method Shipping method instance.
-						 */
-						do_action( 'woocommerce_before_get_rates_for_package', $package, $shipping_method );
-
-						// Use + instead of array_merge to maintain numeric keys.
-						$package['rates'] = $package['rates'] + $shipping_method->get_rates_for_package( $package );
-
-						/**
-						 * Fires after getting shipping rates for a package.
-						 *
-						 * @since 4.3.0
-						 * @param array $package Package of cart items.
-						 * @param WC_Shipping_Method $shipping_method Shipping method instance.
-						 */
-						do_action( 'woocommerce_after_get_rates_for_package', $package, $shipping_method );
+					if ( $this->shipping_methods[ $rate->method_id ]->supports( 'local-pickup' ) || 'local_pickup' === $rate->method_id ) {
+						$local_pickup[ $rate->id ] = $rate;
 					}
 				}
 
-				// Filter the calculated rates.
-				$package['rates'] = apply_filters( 'woocommerce_package_rates', $package['rates'], $package );
-
-				// Store in session to avoid recalculation.
-				WC()->session->set(
-					$wc_session_key,
-					array(
-						'package_hash' => $package_hash,
-						'rates'        => $package['rates'],
-					)
-				);
-			} else {
-				$package['rates'] = $stored_rates['rates'];
+				if ( ! empty( $free_shipping ) ) {
+					$package['rates'] = array_merge( $free_shipping, $local_pickup );
+				}
 			}
+
+			/**
+			 * Filter the calculated shipping rates.
+			 *
+			 * @see https://gist.github.com/woogists/271654709e1d27648546e83253c1a813 for cache invalidation methods.
+			 * @since 2.0.0
+			 * @param array $package['rates'] Package rates.
+			 * @param array $package Package of cart items.
+			 */
+			$package['rates'] = apply_filters( 'woocommerce_package_rates', $package['rates'], $package );
+
+			// Package rates should be an array, if it was filtered into a non-array, reset it. Don't reset to the
+			// unfiltered value, as e.g. a 3pd could have set it to "false" to remove rates.
+			if ( ! is_array( $package['rates'] ) ) {
+				$package['rates'] = array();
+			}
+
+			// Store in session to avoid recalculation.
+			WC()->session->set(
+				$wc_session_key,
+				array(
+					'package_hash' => $package_hash,
+					'rates'        => $package['rates'],
+				)
+			);
+		} else {
+			$package['rates'] = $stored_rates['rates'];
 		}
+
 		return $package;
 	}
 

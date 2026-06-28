@@ -4,9 +4,10 @@ namespace PDFEmbedder\Admin;
 
 use WPPDF_Skin;
 use Plugin_Upgrader;
+use PDFEmbedder\Helpers\Assets;
 
 /**
- * Partners class handles plugins list rendering and installation.
+ * This class handles plugins' list rendering and installation.
  *
  * @since 4.7.0
  */
@@ -17,7 +18,7 @@ class Partners {
 	 *
 	 * @since 4.7.0
 	 */
-	public function hooks() {
+	public function hooks(): void {
 
 		add_action( 'wp_ajax_pdfemb_partners_install', [ $this, 'install_partner' ] );
 		add_action( 'wp_ajax_pdfemb_partners_activate', [ $this, 'activate_partner' ] );
@@ -29,27 +30,7 @@ class Partners {
 	 *
      * @since 4.7.0
 	 */
-	public function show() {
-
-		wp_localize_script(
-			'pdfemb_admin',
-			'pdfemb_args',
-			[
-				'activate_nonce'   => wp_create_nonce( 'pdfemb-activate-partner' ),
-				'active'           => esc_html__( 'Status: Active', 'pdf-embedder' ),
-				'activate'         => esc_html__( 'Activate', 'pdf-embedder' ),
-				'activating'       => esc_html__( 'Activating...', 'pdf-embedder' ),
-				'ajax'             => admin_url( 'admin-ajax.php' ),
-				'deactivate'       => esc_html__( 'Deactivate', 'pdf-embedder' ),
-				'deactivate_nonce' => wp_create_nonce( 'pdfemb-deactivate-partner' ),
-				'deactivating'     => esc_html__( 'Deactivating...', 'pdf-embedder' ),
-				'inactive'         => esc_html__( 'Status: Inactive', 'pdf-embedder' ),
-				'install'          => esc_html__( 'Install', 'pdf-embedder' ),
-				'install_nonce'    => wp_create_nonce( 'pdfemb-install-partner' ),
-				'installing'       => esc_html__( 'Installing...', 'pdf-embedder' ),
-				'proceed'          => esc_html__( 'Proceed', 'pdf-embedder' ),
-			]
-		);
+	public function show(): void {
 
 		foreach ( $this->get_plugins() as $plugin ) {
 			$this->show_plugin_card( $plugin );
@@ -63,7 +44,7 @@ class Partners {
 	 *
 	 * @param array $plugin Plugin data.
 	 */
-	public function show_plugin_card( array $plugin ) {
+	public function show_plugin_card( array $plugin ): void {
 
 		if ( ! $plugin ) {
 			return;
@@ -137,7 +118,7 @@ class Partners {
 			'google_apps_login'     => [
 				'name'        => 'Google Apps Login',
 				'description' => 'Simple secure login and user management through your Google Workspace (uses secure OAuth2, and MFA if enabled).',
-				'icon'        => plugins_url( 'assets/img/partners/google-apps.png', PDFEMB_PLUGIN_FILE ),
+				'icon'        => Assets::url( 'img/partners/google-apps.png', false ),
 				'url'         => 'https://downloads.wordpress.org/plugin/google-apps-login.zip',
 				'basename'    => 'google-apps-login/google_apps_login.php',
 
@@ -145,7 +126,7 @@ class Partners {
 			'google_drive_embedder' => [
 				'name'        => 'Google Drive Embedder',
 				'description' => 'Browse for files in your Google Drive and embed them directly in your content. This plugin requires Google Apps Login.',
-				'icon'        => plugins_url( 'assets/img/partners/google-drive.png', PDFEMB_PLUGIN_FILE ),
+				'icon'        => Assets::url( 'img/partners/google-drive.png', false ),
 				'url'         => 'https://downloads.wordpress.org/plugin/google-drive-embedder.zip',
 				'basename'    => 'google-drive-embedder/google_drive_embedder.php',
 			],
@@ -157,10 +138,13 @@ class Partners {
 	 *
 	 * @since 4.7.0
 	 */
-	public function activate_partner() {
+	public function activate_partner(): void {
 
-		// Run a security check first.
 		check_admin_referer( 'pdfemb-activate-partner', 'nonce' );
+
+		if ( ! current_user_can( 'activate_plugins' ) ) {
+			wp_send_json_error( [ 'error' => esc_html__( 'Insufficient permissions.', 'pdf-embedder' ) ] );
+		}
 
 		// Activate the addon.
 		if ( isset( $_POST['basename'] ) ) {
@@ -181,9 +165,14 @@ class Partners {
 	 *
 	 * @since 4.7.0
 	 */
-	public function deactivate_partner() {
-		// Run a security check first.
+	public function deactivate_partner(): void {
+
 		check_admin_referer( 'pdfemb-deactivate-partner', 'nonce' );
+
+		// WP has no `deactivate_plugins` capability — `activate_plugins` gates both activate and deactivate.
+		if ( ! current_user_can( 'activate_plugins' ) ) {
+			wp_send_json_error( [ 'error' => esc_html__( 'Insufficient permissions.', 'pdf-embedder' ) ] );
+		}
 
 		// Deactivate the addon.
 		if ( isset( $_POST['basename'] ) ) {
@@ -199,13 +188,22 @@ class Partners {
 	 *
 	 * @since 4.7.0
 	 */
-	public function install_partner() {
+	public function install_partner(): void {
 
 		check_admin_referer( 'pdfemb-install-partner', 'nonce' );
+
+		if ( ! current_user_can( 'install_plugins' ) ) {
+			wp_send_json_error( [ 'error' => esc_html__( 'Insufficient permissions.', 'pdf-embedder' ) ] );
+		}
 
 		// Install the addon.
 		if ( isset( $_POST['download_url'] ) ) {
 			$download_url = esc_url_raw( wp_unslash( $_POST['download_url'] ) );
+
+			// Restrict the download URL to the known partner list to prevent arbitrary-zip install.
+			if ( ! in_array( $download_url, array_column( $this->get_plugins(), 'url' ), true ) ) {
+				wp_send_json_error( [ 'error' => esc_html__( 'Unsupported plugin.', 'pdf-embedder' ) ] );
+			}
 
 			// Set the current screen to avoid undefined notices.
 			set_current_screen();

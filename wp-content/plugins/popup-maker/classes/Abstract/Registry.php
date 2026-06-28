@@ -1,7 +1,10 @@
 <?php
-/*******************************************************************************
- * Copyright (c) 2019, Code Atlantic LLC
- ******************************************************************************/
+/**
+ * Abstract class for Registry
+ *
+ * @package   PopupMaker
+ * @copyright Copyright (c) 2024, Code Atlantic LLC
+ */
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -19,7 +22,7 @@ abstract class PUM_Abstract_Registry {
 	 *
 	 * @var    array
 	 */
-	protected $items = array();
+	protected $items = [];
 
 	/**
 	 * Adds an item to the registry.
@@ -78,11 +81,11 @@ abstract class PUM_Abstract_Registry {
 	/**
 	 * Only intended for use by tests.
 	 */
-	public function _reset_items() {
+	public function _reset_items() { // phpcs:ignore PSR2.Methods.MethodDeclaration.Underscore
 		if ( ! defined( 'WP_TESTS_DOMAIN' ) ) {
 			_doing_it_wrong( 'PUM_Abstract_Registry::_reset_items', 'This method is only intended for use in phpunit tests', '1.7.0' );
 		} else {
-			$this->items = array();
+			$this->items = [];
 		}
 	}
 }

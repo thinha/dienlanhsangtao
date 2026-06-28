@@ -1,8 +1,14 @@
 <?php
-/*******************************************************************************
- * Copyright (c) 2020, WP Popup Maker
- ******************************************************************************/
+/**
+ * Abstract for Integration Form
+ *
+ * @package   PopupMaker
+ * @copyright Copyright (c) 2024, Code Atlantic LLC
+ */
 
+/**
+ * Abstract for Form Integration
+ */
 abstract class PUM_Abstract_Integration_Form extends PUM_Abstract_Integration implements PUM_Interface_Integration_Form {
 
 	/**
@@ -32,7 +38,7 @@ abstract class PUM_Abstract_Integration_Form extends PUM_Abstract_Integration im
 	 *
 	 * @return array
 	 */
-	public function custom_scripts( $js = []) {
+	public function custom_scripts( $js = [] ) {
 		return $js;
 	}
 
@@ -52,7 +58,11 @@ abstract class PUM_Abstract_Integration_Form extends PUM_Abstract_Integration im
 	 * @since 1.13.0
 	 */
 	public function get_popup_id() {
-		return isset( $_REQUEST['pum_form_popup_id'] ) && absint( $_REQUEST['pum_form_popup_id'] ) > 0 ? absint( $_REQUEST['pum_form_popup_id'] ) : false;
+		// Ignored because this piggy backs on the nonce check in the form submission handler, and only allows for absint or false.
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended
+		$popup_id = isset( $_REQUEST['pum_form_popup_id'] ) ? absint( $_REQUEST['pum_form_popup_id'] ) : false;
+
+		return $popup_id > 0 ? $popup_id : false;
 	}
 
 	/**
@@ -68,7 +78,7 @@ abstract class PUM_Abstract_Integration_Form extends PUM_Abstract_Integration im
 	}
 
 	/**
-	 * Returns whether or now we should process any form submissions
+	 * Returns whether or not we should process any form submissions
 	 *
 	 * @return bool True if we should process the form submission
 	 * @since 1.13.0

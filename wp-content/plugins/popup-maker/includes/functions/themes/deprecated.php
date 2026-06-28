@@ -1,7 +1,10 @@
 <?php
-/*******************************************************************************
- * Copyright (c) 2019, Code Atlantic LLC
- ******************************************************************************/
+/**
+ * Functions for Deprecated Themes
+ *
+ * @package   PopupMaker
+ * @copyright Copyright (c) 2024, Code Atlantic LLC
+ */
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit; // Exit if accessed directly
@@ -18,22 +21,9 @@ function popmake_generate_theme_styles( $popup_theme_id = 0 ) {
 	return pum_get_theme_generated_styles( $popup_theme_id );
 }
 
-/**
- * Get theme meta defaults from data model 1.
- *
- * @since 1.8.0
- *
- * @param null|string $group
- *
- * @return array|bool|mixed
- */
-function pum_get_theme_v1_meta_defaults() {
-
-}
-
-# TODO LEFT OFF HERE
-# REFACTOR v1 meta getter & defaults.
-# CONTINUE PURGING CODE.
+// TODO LEFT OFF HERE
+// REFACTOR v1 meta getter & defaults.
+// CONTINUE PURGING CODE.
 
 /**
  * Fetches theme meta group data from v1 data format.
@@ -44,11 +34,11 @@ function pum_get_theme_v1_meta_defaults() {
  * @param      $group
  * @param null $popup_theme_id
  * @param null $key
- * @param null $default
+ * @param null $default_value
  *
  * @return mixed
  */
-function pum_get_theme_v1_meta( $group, $popup_theme_id = null, $key = null, $default = null ) {
+function pum_get_theme_v1_meta( $group, $popup_theme_id = null, $key = null, $default_value = null ) {
 	if ( ! $popup_theme_id ) {
 		$popup_theme_id = get_the_ID();
 	}
@@ -56,19 +46,19 @@ function pum_get_theme_v1_meta( $group, $popup_theme_id = null, $key = null, $de
 	$post_meta = get_post_custom( $popup_theme_id );
 
 	if ( ! is_array( $post_meta ) ) {
-		$post_meta = array();
+		$post_meta = [];
 	}
 
 	$default_check_key = 'popup_theme_defaults_set';
-	if ( ! in_array( $group, array( 'overlay', 'close', 'display', 'targeting_condition' ) ) ) {
+	if ( ! in_array( $group, [ 'overlay', 'close', 'display', 'targeting_condition' ], true ) ) {
 		$default_check_key = "popup_{$group}_defaults_set";
 	}
 
-	$group_values = array_key_exists( $default_check_key, $post_meta ) ? array() : apply_filters( "popmake_popup_theme_{$group}_defaults", array() );
+	$group_values = array_key_exists( $default_check_key, $post_meta ) ? [] : apply_filters( "popmake_popup_theme_{$group}_defaults", [] );
 	foreach ( $post_meta as $meta_key => $value ) {
 		if ( strpos( $meta_key, "popup_theme_{$group}_" ) !== false ) {
 			$new_key = str_replace( "popup_theme_{$group}_", '', $meta_key );
-			if ( count( $value ) == 1 ) {
+			if ( count( $value ) === 1 ) {
 				$group_values[ $new_key ] = $value[0];
 			} else {
 				$group_values[ $new_key ] = $value;
@@ -78,7 +68,7 @@ function pum_get_theme_v1_meta( $group, $popup_theme_id = null, $key = null, $de
 	if ( $key ) {
 		$key = str_replace( '.', '_', $key );
 		if ( ! isset( $group_values[ $key ] ) ) {
-			$value = $default;
+			$value = $default_value;
 		} else {
 			$value = $group_values[ $key ];
 		}
@@ -99,12 +89,12 @@ function pum_get_theme_v1_meta( $group, $popup_theme_id = null, $key = null, $de
  * @return array|bool|mixed
  */
 function pum_get_theme_v2_meta_defaults( $group = null ) {
-	$defaults = array(
-		'overlay'   => array(
+	$defaults = [
+		'overlay'   => [
 			'background_color'   => '#ffffff',
 			'background_opacity' => 100,
-		),
-		'container' => array(
+		],
+		'container' => [
 			'padding'              => 18,
 			'background_color'     => '#f9f9f9',
 			'background_opacity'   => 100,
@@ -119,8 +109,8 @@ function pum_get_theme_v2_meta_defaults( $group = null ) {
 			'boxshadow_spread'     => 0,
 			'boxshadow_color'      => '#020202',
 			'boxshadow_opacity'    => 23,
-		),
-		'title'     => array(
+		],
+		'title'     => [
 			'font_color'            => '#000000',
 			'line_height'           => 36,
 			'font_size'             => 32,
@@ -133,14 +123,14 @@ function pum_get_theme_v2_meta_defaults( $group = null ) {
 			'textshadow_blur'       => 0,
 			'textshadow_color'      => '#020202',
 			'textshadow_opacity'    => 23,
-		),
-		'content'   => array(
+		],
+		'content'   => [
 			'font_color'  => '#8c8c8c',
 			'font_family' => 'inherit',
 			'font_weight' => 'inherit',
 			'font_style'  => 'normal',
-		),
-		'close'     => array(
+		],
+		'close'     => [
 			'text'                  => __( 'CLOSE', 'popup-maker' ),
 			'location'              => 'topright',
 			'position_top'          => 0,
@@ -174,8 +164,8 @@ function pum_get_theme_v2_meta_defaults( $group = null ) {
 			'textshadow_blur'       => 0,
 			'textshadow_color'      => '#000000',
 			'textshadow_opacity'    => 23,
-		),
-	);
+		],
+	];
 
 	// Here for backward compatibility with extensions.
 	foreach ( $defaults as $key => $values ) {
@@ -183,7 +173,6 @@ function pum_get_theme_v2_meta_defaults( $group = null ) {
 	}
 
 	return isset( $group ) ? ( isset( $defaults[ $group ] ) ? $defaults[ $group ] : false ) : $defaults;
-
 }
 
 /**
@@ -202,13 +191,13 @@ function pum_get_theme_v2_meta( $theme_id = null ) {
 
 	$defaults = pum_get_theme_v2_meta_defaults();
 
-	$values = array(
+	$values = [
 		'overlay'   => $theme->get_meta( 'popup_theme_overlay' ),
 		'container' => $theme->get_meta( 'popup_theme_container' ),
 		'title'     => $theme->get_meta( 'popup_theme_title' ),
 		'content'   => $theme->get_meta( 'popup_theme_content' ),
 		'close'     => $theme->get_meta( 'popup_theme_close' ),
-	);
+	];
 
 	foreach ( array_keys( $values ) as $array_key ) {
 		$values[ $array_key ] = wp_parse_args( $values[ $array_key ], $defaults[ $array_key ] );
@@ -226,11 +215,11 @@ function pum_get_theme_v2_meta( $theme_id = null ) {
  * @param string      $meta_group
  * @param null|int    $theme_id
  * @param null|string $option_key
- * @param null|mixed  $default
+ * @param null|mixed  $default_value
  *
  * @return mixed
  */
-function pum_get_theme_v2_meta_group( $meta_group, $theme_id = null, $option_key = null, $default = null ) {
+function pum_get_theme_v2_meta_group( $meta_group, $theme_id = null, $option_key = null, $default_value = null ) {
 	$theme_meta = pum_get_theme_v2_meta( $theme_id );
 
 	if ( ! $theme_meta ) {
@@ -240,11 +229,11 @@ function pum_get_theme_v2_meta_group( $meta_group, $theme_id = null, $option_key
 	$group_meta = ! empty( $theme_meta[ $meta_group ] ) ? $theme_meta[ $meta_group ] : false;
 
 	if ( ! $group_meta ) {
-		return $default;
+		return $default_value;
 	}
 
 	if ( isset( $option_key ) ) {
-		$value = isset( $group_meta[ $option_key ] ) ? $group_meta[ $option_key ] : $default;
+		$value = isset( $group_meta[ $option_key ] ) ? $group_meta[ $option_key ] : $default_value;
 
 		return apply_filters( "popmake_get_popup_theme_{$meta_group}_$option_key", $value, $theme_id );
 	} else {
@@ -262,12 +251,12 @@ function pum_get_theme_v2_meta_group( $meta_group, $theme_id = null, $option_key
  * @param int  $popup_theme_id ID number of the popup to retrieve a overlay meta for
  *
  * @param null $key
- * @param null $default
+ * @param null $default_value
  *
  * @return mixed array|string of the popup overlay meta
  */
-function popmake_get_popup_theme_overlay( $popup_theme_id = null, $key = null, $default = null ) {
-	return pum_get_theme_v2_meta_group( 'overlay', $popup_theme_id, $key, $default );
+function popmake_get_popup_theme_overlay( $popup_theme_id = null, $key = null, $default_value = null ) {
+	return pum_get_theme_v2_meta_group( 'overlay', $popup_theme_id, $key, $default_value );
 }
 
 /**
@@ -280,12 +269,12 @@ function popmake_get_popup_theme_overlay( $popup_theme_id = null, $key = null, $
  * @param int  $popup_theme_id ID number of the popup to retrieve a container meta for
  *
  * @param null $key
- * @param null $default
+ * @param null $default_value
  *
  * @return mixed array|string of the popup container meta
  */
-function popmake_get_popup_theme_container( $popup_theme_id = null, $key = null, $default = null ) {
-	return pum_get_theme_v2_meta_group( 'container', $popup_theme_id, $key, $default );
+function popmake_get_popup_theme_container( $popup_theme_id = null, $key = null, $default_value = null ) {
+	return pum_get_theme_v2_meta_group( 'container', $popup_theme_id, $key, $default_value );
 }
 
 /**
@@ -297,12 +286,12 @@ function popmake_get_popup_theme_container( $popup_theme_id = null, $key = null,
  *
  * @param int  $popup_theme_id ID number of the popup to retrieve a title meta for
  * @param null $key
- * @param null $default
+ * @param null $default_value
  *
  * @return mixed array|string of the popup title meta
  */
-function popmake_get_popup_theme_title( $popup_theme_id = null, $key = null, $default = null ) {
-	return pum_get_theme_v2_meta_group( 'title', $popup_theme_id, $key, $default );
+function popmake_get_popup_theme_title( $popup_theme_id = null, $key = null, $default_value = null ) {
+	return pum_get_theme_v2_meta_group( 'title', $popup_theme_id, $key, $default_value );
 }
 
 /**
@@ -315,12 +304,12 @@ function popmake_get_popup_theme_title( $popup_theme_id = null, $key = null, $de
  * @param int  $popup_theme_id ID number of the popup to retrieve a content meta for
  *
  * @param null $key
- * @param null $default
+ * @param null $default_value
  *
  * @return mixed array|string of the popup content meta
  */
-function popmake_get_popup_theme_content( $popup_theme_id = null, $key = null, $default = null ) {
-	return pum_get_theme_v2_meta_group( 'content', $popup_theme_id, $key, $default );
+function popmake_get_popup_theme_content( $popup_theme_id = null, $key = null, $default_value = null ) {
+	return pum_get_theme_v2_meta_group( 'content', $popup_theme_id, $key, $default_value );
 }
 
 /**
@@ -333,15 +322,16 @@ function popmake_get_popup_theme_content( $popup_theme_id = null, $key = null, $
  * @param int  $popup_theme_id ID number of the popup to retrieve a close meta for
  *
  * @param null $key
- * @param null $default
+ * @param null $default_value
  *
  * @return mixed array|string of the popup close meta
  */
-function popmake_get_popup_theme_close( $popup_theme_id = null, $key = null, $default = null ) {
-	return pum_get_theme_v2_meta_group( 'close', $popup_theme_id, $key, $default );
+function popmake_get_popup_theme_close( $popup_theme_id = null, $key = null, $default_value = null ) {
+	return pum_get_theme_v2_meta_group( 'close', $popup_theme_id, $key, $default_value );
 }
 
 /**\
+ *
  * @deprecated 1.8.0
  *
  * @param int $theme_id
@@ -363,7 +353,7 @@ function popmake_get_popup_theme_data_attr( $theme_id = 0 ) {
 function popmake_get_popup_themes_data() {
 	$themes = pum_get_all_themes();
 
-	$popmake_themes = array();
+	$popmake_themes = [];
 
 	foreach ( $themes as $theme ) {
 		$popmake_themes[ $theme->ID ] = popmake_get_popup_theme_data_attr( $theme->ID );
@@ -384,12 +374,12 @@ function popmake_get_popup_themes_data() {
  * @param      $group
  * @param int  $popup_theme_id ID number of the popup to retrieve a overlay meta for
  * @param null $key
- * @param null $default
+ * @param null $default_value
  *
  * @return mixed array|string of the popup overlay meta
  */
-function popmake_get_popup_theme_meta_group( $group, $popup_theme_id = null, $key = null, $default = null ) {
-	return pum_get_theme_v1_meta( $group, $popup_theme_id, $key, $default );
+function popmake_get_popup_theme_meta_group( $group, $popup_theme_id = null, $key = null, $default_value = null ) {
+	return pum_get_theme_v1_meta( $group, $popup_theme_id, $key, $default_value );
 }
 
 /**
@@ -402,12 +392,12 @@ function popmake_get_popup_theme_meta_group( $group, $popup_theme_id = null, $ke
  * @param      $group
  * @param null $popup_theme_id
  * @param null $key
- * @param null $default
+ * @param null $default_value
  *
  * @return mixed
  */
-function popmake_get_popup_theme_meta( $group, $popup_theme_id = null, $key = null, $default = null ) {
-	return pum_get_theme_v2_meta_group( $group, $popup_theme_id, $key, $default );
+function popmake_get_popup_theme_meta( $group, $popup_theme_id = null, $key = null, $default_value = null ) {
+	return pum_get_theme_v2_meta_group( $group, $popup_theme_id, $key, $default_value );
 }
 
 /**

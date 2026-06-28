@@ -1,12 +1,14 @@
 <?php
-/*******************************************************************************
- * Copyright (c) 2019, Code Atlantic LLC
- ******************************************************************************/
+/**
+ * Extension Activator Handler
+ *
+ * @package   PopupMaker
+ * @copyright Copyright (c) 2024, Code Atlantic LLC
+ */
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
-
 
 /**
  * Popup Maker Extension Activation Handler Class
@@ -83,15 +85,19 @@ class PUM_Extension_Activator {
 	 */
 	public function __construct( $class_name ) {
 		// We need plugin.php!
-		require_once( ABSPATH . 'wp-admin/includes/plugin.php' );
+		require_once ABSPATH . 'wp-admin/includes/plugin.php';
 
 		// Validate extension class is valid.
-		if ( in_array( false, array(
-			class_exists( $class_name ),
-			property_exists( $class_name, 'NAME' ),
-			property_exists( $class_name, 'REQUIRED_CORE_VER' ),
-			method_exists( $class_name, 'instance' ),
-		) ) ) {
+		if ( in_array(
+			false,
+			[
+				class_exists( $class_name ),
+				property_exists( $class_name, 'NAME' ),
+				property_exists( $class_name, 'REQUIRED_CORE_VER' ),
+				method_exists( $class_name, 'instance' ),
+			],
+			true
+		) ) {
 			return;
 		}
 
@@ -104,7 +110,7 @@ class PUM_Extension_Activator {
 
 		$popup_maker_data = get_plugin_data( WP_PLUGIN_DIR . '/popup-maker/popup-maker.php', false, false );
 
-		if ( $popup_maker_data['Name'] == 'Popup Maker' ) {
+		if ( 'Popup Maker' === $popup_maker_data['Name'] ) {
 			$this->core_installed = true;
 			$this->core_path      = 'popup-maker/popup-maker.php';
 		}
@@ -131,26 +137,26 @@ class PUM_Extension_Activator {
 	 * @access      public
 	 */
 	public function run() {
-		if ( $this->get_status() != 'active' ) {
+		if ( $this->get_status() !== 'active' ) {
 			// Display notice
-			add_action( 'admin_notices', array( $this, 'missing_popmake_notice' ) );
+			add_action( 'admin_notices', [ $this, 'missing_popmake_notice' ] );
 		} else {
 			$class_name = $this->extension_class_name;
 
 			// Generate an instance of the extension class in a PHP 5.2 compatible way.
-			call_user_func( array( $class_name, 'instance' ) );
+			call_user_func( [ $class_name, 'instance' ] );
 
 			$this->extension_file = $this->get_static_prop( $class_name, 'FILE' );
 
 			$plugin_slug          = explode( '/', plugin_basename( $this->extension_file ), 2 );
-			$this->extension_slug = str_replace( array( 'popup-maker-', 'pum-' ), '', $plugin_slug[0] );
+			$this->extension_slug = str_replace( [ 'popup-maker-', 'pum-' ], '', $plugin_slug[0] );
 
 			// Handle licensing for extensions with valid ID & not wp repo extensions.
 			if ( $this->extension_id > 0 && ! $this->extension_wp_repo && class_exists( 'PUM_Extension_License' ) ) {
 				new PUM_Extension_License( $this->extension_file, $this->extension_name, $this->extension_version, 'Popup Maker', null, null, $this->extension_id );
 			}
 
-			add_filter( 'pum_enabled_extensions', array( $this, 'enabled_extensions' ) );
+			add_filter( 'pum_enabled_extensions', [ $this, 'enabled_extensions' ] );
 		}
 	}
 
@@ -162,20 +168,39 @@ class PUM_Extension_Activator {
 		switch ( $this->get_status() ) {
 			case 'not_activated':
 				$url  = esc_url( wp_nonce_url( admin_url( 'plugins.php?action=activate&plugin=' . $this->core_path ), 'activate-plugin_' . $this->core_path ) );
-				$link = '<a href="' . $url . '">' . __( 'activate it' ) . '</a>';
-				echo '<div class="error"><p>' . sprintf( __( 'The plugin "%s" requires %s! Please %s to continue!' ), $this->extension_name, '<strong>' . __( 'Popup Maker' ) . '</strong>', $link ) . '</p></div>';
+				$link = '<a href="' . $url . '">' . esc_html__( 'activate it', 'popup-maker' ) . '</a>';
+				echo '<div class="error"><p>' . sprintf(
+					/* translators: 1. Plugin name, 2. Required plugin name, 3. `activate it` link. */
+					esc_html__( 'The plugin "%1$s" requires %2$s! Please %3$s to continue!', 'popup-maker' ),
+					esc_attr( $this->extension_name ),
+					'<strong>' . esc_html__( 'Popup Maker', 'popup-maker' ) . '</strong>',
+					esc_attr( $link )
+				) . '</p></div>';
 
 				break;
 			case 'not_updated':
 				$url  = esc_url( wp_nonce_url( admin_url( 'update.php?action=upgrade-plugin&plugin=' . $this->core_path ), 'upgrade-plugin_' . $this->core_path ) );
-				$link = '<a href="' . $url . '">' . __( 'update it' ) . '</a>';
-				echo '<div class="error"><p>' . sprintf( __( 'The plugin "%s" requires %s v%s or higher! Please %s to continue!' ), $this->extension_name, '<strong>' . __( 'Popup Maker' ) . '</strong>', '<strong>' . $this->required_core_version . '</strong>', $link ) . '</p></div>';
+				$link = '<a href="' . $url . '">' . esc_html__( 'update it', 'popup-maker' ) . '</a>';
+				echo '<div class="error"><p>' . sprintf(
+					/* translators: 1. Plugin name, 2. Required plugin name, 3. Version number, 4. `update it` link. */
+					esc_html__( 'The plugin "%1$s" requires %2$s v%3$s or higher! Please %4$s to continue!', 'popup-maker' ),
+					esc_attr( $this->extension_name ),
+					'<strong>' . esc_html__( 'Popup Maker', 'popup-maker' ) . '</strong>',
+					'<strong>' . esc_html( $this->required_core_version ) . '</strong>',
+					esc_attr( $link )
+				) . '</p></div>';
 
 				break;
 			case 'not_installed':
 				$url  = esc_url( wp_nonce_url( self_admin_url( 'update.php?action=install-plugin&plugin=popup-maker' ), 'install-plugin_popup-maker' ) );
-				$link = '<a href="' . $url . '">' . __( 'install it' ) . '</a>';
-				echo '<div class="error"><p>' . sprintf( __( 'The plugin "%s" requires %s! Please %s to continue!' ), $this->extension_name, '<strong>' . __( 'Popup Maker' ) . '</strong>', $link ) . '</p></div>';
+				$link = '<a href="' . $url . '">' . esc_html__( 'install it', 'popup-maker' ) . '</a>';
+				echo '<div class="error"><p>' . sprintf(
+					/* translators: 1. Plugin name, 2. Required plugin name, 3. `install it` link. */
+					esc_html__( 'The plugin "%1$s" requires %2$s! Please %3$s to continue!', 'popup-maker' ),
+					esc_attr( $this->extension_name ),
+					'<strong>' . esc_html__( 'Popup Maker', 'popup-maker' ) . '</strong>',
+					esc_attr( $link )
+				) . '</p></div>';
 
 				break;
 			case 'active':
@@ -189,7 +214,7 @@ class PUM_Extension_Activator {
 	 *
 	 * @return array
 	 */
-	public function enabled_extensions( $enabled_extensions = array() ) {
+	public function enabled_extensions( $enabled_extensions = [] ) {
 		$enabled_extensions[ $this->extension_slug ] = $this->extension_class_name;
 
 		return $enabled_extensions;

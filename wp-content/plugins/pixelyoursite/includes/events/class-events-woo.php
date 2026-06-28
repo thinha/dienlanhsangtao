@@ -78,8 +78,7 @@ class EventsWoo extends EventsFactory {
                 $size++;
             }
         }
-        if(PYS()->getOption( 'woo_complete_registration_enabled' ))
-            $size++;
+
         return $size;
     }
 
@@ -103,7 +102,7 @@ class EventsWoo extends EventsFactory {
                     ? 'form.woocommerce-cart-form .remove'
                     : '.cart .product-remove .remove',
                 'addToCartCatchMethod'  => PYS()->getOption('woo_add_to_cart_catch_method'),
-                'is_order_received_page' => is_order_received_page(),
+                'is_order_received_page' => PYS()->woo_is_order_received_page(),
                 'containOrderId' => wooIsRequestContainOrderId()
             );
 
@@ -132,7 +131,7 @@ class EventsWoo extends EventsFactory {
 
 
             case 'woo_purchase' : {
-                if(PYS()->getOption( 'woo_purchase_enabled' ) && is_order_received_page() &&
+                if(PYS()->getOption( 'woo_purchase_enabled' ) && PYS()->woo_is_order_received_page() &&
                     isset( $_REQUEST['key'] )  && $_REQUEST['key'] != ""
                     && empty($_REQUEST['wc-api']) // if is not api request
                 ) {
@@ -140,7 +139,7 @@ class EventsWoo extends EventsFactory {
                     $order_key = sanitize_key($_REQUEST['key']);
                     $cache_key = 'order_id_' . $order_key;
                     $order_id = get_transient( $cache_key );
-                    if (is_order_received_page() && empty($order_id) && $wp->query_vars['order-received']) {
+                    if (PYS()->woo_is_order_received_page() && empty($order_id) && isset($wp->query_vars['order-received']) && $wp->query_vars['order-received']) {
 
                         $order_id = absint( $wp->query_vars['order-received'] );
                         if ($order_id) {
@@ -222,7 +221,7 @@ class EventsWoo extends EventsFactory {
                 $cache_key = 'order_id_' . $order_key;
                 $order_id = get_transient( $cache_key );
                 global $wp;
-                if (is_order_received_page() && empty($order_id) && $wp->query_vars['order-received']) {
+                if (PYS()->woo_is_order_received_page() && empty($order_id) && isset($wp->query_vars['order-received']) && $wp->query_vars['order-received']) {
                     $order_id = absint( $wp->query_vars['order-received'] );
                     if ($order_id) {
                         set_transient( $cache_key, $order_id, HOUR_IN_SECONDS );
@@ -245,12 +244,6 @@ class EventsWoo extends EventsFactory {
                     update_post_meta( $order_id, '_pys_purchase_event_fired', true );
                 }
                 $events[] = new SingleEvent($event,EventTypes::$STATIC,'woo');
-
-                // add child event complete_registration
-                if(PYS()->getOption( 'woo_complete_registration_enabled' ) && Facebook()->getOption("woo_complete_registration_fire_every_time") && !Facebook()->getOption("woo_complete_registration_send_from_server")) {
-                    $events[] = new SingleEvent('woo_complete_registration',EventTypes::$STATIC,'woo');
-                }
-
 
                 return $events;
             }
@@ -318,7 +311,8 @@ class EventsWoo extends EventsFactory {
     }
 
     private function getWooOrderActiveCategories($orderId,$activeIds) {
-        $order = new \WC_Order( $orderId );
+        $order    = wc_get_order( $orderId );
+        if(!$order) return false;
 
         $fireForCategory = array();
         foreach ($order->get_items() as $item) {

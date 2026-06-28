@@ -1,7 +1,10 @@
 <?php
-/*******************************************************************************
- * Copyright (c) 2019, Code Atlantic LLC
- ******************************************************************************/
+/**
+ * Initialize Integrations
+ *
+ * @package   PopupMaker
+ * @copyright Copyright (c) 2024, Code Atlantic LLC
+ */
 
 // Exit if accessed directly
 if ( ! defined( 'ABSPATH' ) ) {
@@ -11,6 +14,10 @@ if ( ! defined( 'ABSPATH' ) ) {
 // Ninja Forms Integration
 require_once 'integrations/class-pum-ninja-forms.php';
 
+// TODO Migrate all of this into controllers :(
+/**
+ * Initialize Integrations.
+ */
 function pum_initialize_integrations() {
 	// WooCommerce Integration
 	if ( function_exists( 'WC' ) || class_exists( 'WooCommerce' ) ) {

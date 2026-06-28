@@ -261,7 +261,7 @@ class WC_Admin_Attributes {
 									</td>
 								</tr>
 								<?php
-							}
+							}//end if
 							?>
 							<tr class="form-field form-required">
 								<th scope="row" valign="top">
@@ -283,7 +283,9 @@ class WC_Admin_Attributes {
 					<p class="submit"><button type="submit" name="save_attribute" id="submit" class="button-primary" value="<?php esc_attr_e( 'Update', 'woocommerce' ); ?>"><?php esc_html_e( 'Update', 'woocommerce' ); ?></button></p>
 					<?php wp_nonce_field( 'woocommerce-save-attribute_' . $edit ); ?>
 				</form>
-			<?php } ?>
+				<?php
+			}//end if
+			?>
 		</div>
 		<?php
 	}
@@ -317,7 +319,16 @@ class WC_Admin_Attributes {
 							<tbody>
 								<?php
 								$attribute_taxonomies = wc_get_attribute_taxonomies();
-								if ( $attribute_taxonomies ) :
+								if ( $attribute_taxonomies ) {
+									/**
+									 * Filters the maximum number of terms that will be displayed for each taxonomy in the Attributes page.
+									 *
+									 * @param int @default_max_terms_to_display Default value.
+									 * @returns int Actual value to use, may be zero.
+									 *
+									 * @since 6.9.0
+									 */
+									$max_terms_to_display = apply_filters( 'woocommerce_max_terms_displayed_in_attributes_page', 100 );
 									foreach ( $attribute_taxonomies as $tax ) :
 										?>
 										<tr>
@@ -353,30 +364,55 @@ class WC_Admin_Attributes {
 													$taxonomy = wc_attribute_taxonomy_name( $tax->attribute_name );
 
 													if ( taxonomy_exists( $taxonomy ) ) {
-														$terms        = get_terms( $taxonomy, 'hide_empty=0' );
-														$terms_string = implode( ', ', wp_list_pluck( $terms, 'name' ) );
-														if ( $terms_string ) {
+														$total_count = (int) get_terms(
+															array(
+																'taxonomy'   => $taxonomy,
+																'fields'     => 'count',
+																'hide_empty' => false,
+															)
+														);
+														if ( 0 === $total_count ) {
+															echo '<span class="na">&ndash;</span>';
+														} elseif ( $max_terms_to_display > 0 ) {
+															$terms        = get_terms(
+																array(
+																	'taxonomy'   => $taxonomy,
+																	'number'     => $max_terms_to_display,
+																	'fields'     => 'names',
+																	'hide_empty' => false,
+																)
+															);
+															$terms_string = implode( ', ', $terms );
+															if ( $total_count > $max_terms_to_display ) {
+																$remaining = $total_count - $max_terms_to_display;
+																/* translators: 1: Comma-separated terms list, 2: how many terms are hidden */
+																$terms_string = sprintf( __( '%1$s... (%2$s more)', 'woocommerce' ), $terms_string, $remaining );
+															}
 															echo esc_html( $terms_string );
+														} elseif ( 1 === $total_count ) {
+															echo esc_html( __( '1 term', 'woocommerce' ) );
 														} else {
-															echo '<span class="na">&ndash;</span>';
-														}
+															/* translators: %s: Total count of terms available for the attribute */
+															echo esc_html( sprintf( __( '%s terms', 'woocommerce' ), $total_count ) );
+														}//end if
 													} else {
-															echo '<span class="na">&ndash;</span>';
-													}
+															echo '<span class="na">&ndash;</span><br />';
+													}//end if
 													?>
 													<br /><a href="edit-tags.php?taxonomy=<?php echo esc_attr( wc_attribute_taxonomy_name( $tax->attribute_name ) ); ?>&amp;post_type=product" class="configure-terms"><?php esc_html_e( 'Configure terms', 'woocommerce' ); ?></a>
 												</td>
 											</tr>
 											<?php
 										endforeach;
-									else :
-										?>
+								} else {
+									$column_count = wc_has_custom_attribute_types() ? '5' : '4';
+									?>
 										<tr>
-											<td colspan="6"><?php esc_html_e( 'No attributes currently exist.', 'woocommerce' ); ?></td>
+											<td colspan="<?php echo esc_attr( $column_count ); ?>"><?php esc_html_e( 'No attributes currently exist.', 'woocommerce' ); ?></td>
 										</tr>
 										<?php
-									endif;
-									?>
+								}//end if
+								?>
 							</tbody>
 						</table>
 					</div>
@@ -436,7 +472,7 @@ class WC_Admin_Attributes {
 										<p class="description"><?php esc_html_e( "Determines how this attribute's values are displayed.", 'woocommerce' ); ?></p>
 									</div>
 									<?php
-								}
+								}//end if
 								?>
 
 								<div class="form-field">

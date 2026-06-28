@@ -1,7 +1,10 @@
 <?php
-/*******************************************************************************
- * Copyright (c) 2019, Code Atlantic LLC
- ******************************************************************************/
+/**
+ * Modules for menus
+ *
+ * @package   PopupMaker
+ * @copyright Copyright (c) 2024, Code Atlantic LLC
+ */
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -19,39 +22,43 @@ class PUM_Modules_Menu {
 	 * Initializes this module.
 	 */
 	public static function init() {
-		add_filter( 'popmake_settings_misc', array( __CLASS__, 'settings' ) );
+		add_filter( 'popmake_settings_misc', [ __CLASS__, 'settings' ] );
 
 		if ( PUM_Utils_Options::get( 'disabled_menu_editor', false ) ) {
 			return;
 		}
 
 		// Merge Menu Item Options
-		add_filter( 'wp_setup_nav_menu_item', array( __CLASS__, 'merge_item_data' ) );
+		add_filter( 'wp_setup_nav_menu_item', [ __CLASS__, 'merge_item_data' ] );
 		// Admin Menu Editor
-		add_filter( 'wp_edit_nav_menu_walker', array( __CLASS__, 'nav_menu_walker' ), 999999999 );
+		add_filter( 'wp_edit_nav_menu_walker', [ __CLASS__, 'nav_menu_walker' ], 999999999 );
 		// Admin Menu Editor Fields.
-		add_action( 'wp_nav_menu_item_custom_fields', array( __CLASS__, 'fields' ), 10, 4 );
-		add_action( 'wp_update_nav_menu_item', array( __CLASS__, 'save' ), 10, 2 );
-		add_filter( 'manage_nav-menus_columns', array( __CLASS__, 'nav_menu_columns' ), 11 );
+		add_action( 'wp_nav_menu_item_custom_fields', [ __CLASS__, 'fields' ], 10, 4 );
+		add_action( 'wp_update_nav_menu_item', [ __CLASS__, 'save' ], 10, 2 );
+		add_filter( 'manage_nav-menus_columns', [ __CLASS__, 'nav_menu_columns' ], 11 );
 	}
 
 	public static function settings( $settings ) {
-		return array_merge( $settings, array(
-			'disabled_menu_editor' => array(
-				'id'   => 'disabled_menu_editor',
-				'name' => __( 'Disable Popups Menu Editor', 'popup-maker' ),
-				'desc' => sprintf(
-					esc_html_x( 'Use this if there is a conflict with your theme or another plugin in the nav menu editor. %sLearn more%s', '%s represent opening and closing link html', 'popup-maker' ),
-					'<a href="https://docs.wppopupmaker.com/article/297-popup-maker-is-overwriting-my-menu-editor-functions-how-can-i-fix-this?utm_campaign=contextual-help&utm_medium=inline-doclink&utm_source=settings-page&utm_content=disable-popup-menu-editor" target="_blank" rel="noreferrer noopener">',
-					'</a>'
-				),
-				'type' => 'checkbox',
-			),
+		return array_merge(
+			$settings,
+			[
+				'disabled_menu_editor' => [
+					'id'   => 'disabled_menu_editor',
+					'name' => __( 'Disable Popups Menu Editor', 'popup-maker' ),
+					'desc' => sprintf(
+						/* translators: %1$s: opening and closing link HTML tags, %2$s: link text. */
+						esc_html_x( 'Use this if there is a conflict with your theme or another plugin in the nav menu editor. %1$sLearn more%2$s', '%s represent opening and closing link html', 'popup-maker' ),
+						'<a href="https://wppopupmaker.com/docs/navigation-menu-editor/popup-maker-is-overwriting-my-menu-editor-functions-how-can-i-fix-this/?utm_campaign=contextual-help&utm_medium=inline-doclink&utm_source=settings-page&utm_content=disable-popup-menu-editor" target="_blank" rel="noreferrer noopener">',
+						'</a>'
+					),
+					'type' => 'checkbox',
+				],
 
-		) );
+			]
+		);
 	}
 
-	public static function nav_menu_columns( $columns = array() ) {
+	public static function nav_menu_columns( $columns = [] ) {
 		$columns['popup_id'] = __( 'Popup', 'popup-maker' );
 
 		return $columns;
@@ -73,10 +80,10 @@ class PUM_Modules_Menu {
 			// not sure about this one, was part of the original solution.
 			doing_filter( 'plugins_loaded' ),
 			// No need if its already loaded by another plugin.
-			$walker === 'Walker_Nav_Menu_Edit_Custom_Fields',
+			'Walker_Nav_Menu_Edit_Custom_Fields' === $walker,
 		];
 
-		if ( in_array( true, $bail_early ) ) {
+		if ( in_array( true, $bail_early, true ) ) {
 			return $walker;
 		}
 
@@ -95,7 +102,7 @@ class PUM_Modules_Menu {
 	/**
 	 * Merge Item data into the $item object.
 	 *
-	 * @param $item
+	 * @param object $item
 	 *
 	 * @return mixed
 	 */
@@ -106,7 +113,7 @@ class PUM_Modules_Menu {
 		}
 
 		// Merge Rules.
-		foreach ( PUM_Modules_Menu::get_item_options( $item->ID ) as $key => $value ) {
+		foreach ( self::get_item_options( $item->ID ) as $key => $value ) {
 			$item->$key = $value;
 		}
 
@@ -144,7 +151,7 @@ class PUM_Modules_Menu {
 		// Fetch all rules for this menu item.
 		$item_options = get_post_meta( $item_id, '_pum_nav_item_options', true );
 
-		return PUM_Modules_Menu::parse_item_options( $item_options );
+		return self::parse_item_options( $item_options );
 	}
 
 	/**
@@ -152,15 +159,18 @@ class PUM_Modules_Menu {
 	 *
 	 * @return array
 	 */
-	public static function parse_item_options( $options = array() ) {
+	public static function parse_item_options( $options = [] ) {
 
 		if ( ! is_array( $options ) ) {
-			$options = array();
+			$options = [];
 		}
 
-		return wp_parse_args( $options, array(
-			'popup_id' => null,
-		) );
+		return wp_parse_args(
+			$options,
+			[
+				'popup_id' => null,
+			]
+		);
 	}
 
 	/**
@@ -177,19 +187,19 @@ class PUM_Modules_Menu {
 
 		<p class="field-popup_id  description  description-wide">
 
-			<label for="edit-menu-item-popup_id-<?php echo $item->ID; ?>">
-				<?php _e( 'Trigger a Popup', 'popup-maker' ); ?><br />
+			<label for="edit-menu-item-popup_id-<?php echo absint( $item->ID ); ?>">
+				<?php esc_html_e( 'Trigger a Popup', 'popup-maker' ); ?><br />
 
-				<select name="menu-item-pum[<?php echo $item->ID; ?>][popup_id]" id="edit-menu-item-popup_id-<?php echo $item->ID; ?>" class="widefat  edit-menu-item-popup_id">
+				<select name="menu-item-pum[<?php echo absint( $item->ID ); ?>][popup_id]" id="edit-menu-item-popup_id-<?php echo absint( $item->ID ); ?>" class="widefat  edit-menu-item-popup_id">
 					<option value=""></option>
-					<?php foreach ( PUM_Modules_Menu::popup_list() as $option => $label ) : ?>
-						<option value="<?php echo $option; ?>" <?php selected( $option, $item->popup_id ); ?>>
+					<?php foreach ( self::popup_list() as $option => $label ) : ?>
+						<option value="<?php echo esc_attr( $option ); ?>" <?php selected( $option, $item->popup_id ); ?>>
 							<?php echo esc_html( $label ); ?>
 						</option>
 					<?php endforeach; ?>
 				</select>
 
-				<span class="description"><?php _e( 'Choose a popup to trigger when this item is clicked.', 'popup-maker' ); ?></span>
+				<span class="description"><?php esc_html_e( 'Choose a popup to trigger when this item is clicked.', 'popup-maker' ); ?></span>
 			</label>
 
 		</p>
@@ -207,8 +217,7 @@ class PUM_Modules_Menu {
 		static $popup_list;
 
 		if ( ! isset( $popup_list ) ) {
-
-			$popup_list = array();
+			$popup_list = [];
 
 			$popups = pum_get_all_popups();
 
@@ -217,7 +226,6 @@ class PUM_Modules_Menu {
 					$popup_list[ $popup->ID ] = $popup->post_title;
 				}
 			}
-
 		}
 
 		return $popup_list;
@@ -231,11 +239,11 @@ class PUM_Modules_Menu {
 	 */
 	public static function save( $menu_id, $item_id ) {
 
-		$popups = PUM_Modules_Menu::popup_list();
+		$popups = self::popup_list();
 
 		$allowed_popups = wp_parse_id_list( array_keys( $popups ) );
 
-		if ( ! isset( $_POST['pum-menu-editor-nonce'] ) || ! wp_verify_nonce( $_POST['pum-menu-editor-nonce'], 'pum-menu-editor-nonce' ) ) {
+		if ( ! isset( $_POST['pum-menu-editor-nonce'] ) || ! wp_verify_nonce( sanitize_key( wp_unslash( $_POST['pum-menu-editor-nonce'] ) ), 'pum-menu-editor-nonce' ) ) {
 			return;
 		}
 
@@ -251,12 +259,15 @@ class PUM_Modules_Menu {
 		/**
 		 * Parse options array for valid keys.
 		 */
-		$item_options = PUM_Modules_Menu::parse_item_options( $_POST['menu-item-pum'][ $item_id ] );
+		$item_options = self::parse_item_options(
+			// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
+			wp_unslash( $_POST['menu-item-pum'][ $item_id ] )
+		);
 
 		/**
 		 * Check for invalid values.
 		 */
-		if ( ! in_array( $item_options['popup_id'], $allowed_popups ) || $item_options['popup_id'] <= 0 ) {
+		if ( ! in_array( (int) $item_options['popup_id'], $allowed_popups, true ) || $item_options['popup_id'] <= 0 ) {
 			unset( $item_options['popup_id'] );
 		}
 

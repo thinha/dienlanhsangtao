@@ -16,6 +16,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 if ( ! class_exists( 'ACF' ) ) :
 
+	#[\AllowDynamicProperties]
 	class ACF {
 
 		/** @var string The plugin version number. */

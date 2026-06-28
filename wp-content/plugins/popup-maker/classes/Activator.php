@@ -1,7 +1,10 @@
 <?php
-/*******************************************************************************
- * Copyright (c) 2019, Code Atlantic LLC
- ******************************************************************************/
+/**
+ * Activator class
+ *
+ * @package   PopupMaker
+ * @copyright Copyright (c) 2024, Code Atlantic LLC
+ */
 
 // Exit if accessed directly
 if ( ! defined( 'ABSPATH' ) ) {
@@ -34,5 +37,4 @@ class PUM_Activator extends PUM_Install {
 	public static function activate( $network_wide = false ) {
 		parent::activate_plugin( $network_wide );
 	}
-
 }

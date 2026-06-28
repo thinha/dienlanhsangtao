@@ -7,13 +7,17 @@
   "general_event_on_woo_enabled": "checkbox",
   "general_event_on_edd_enabled": "checkbox",
 
+  "enable_all_tracking_ids" : "checkbox",
+
   "cookie_duration": "number",
   "last_visit_duration": "number",
   "debug_enabled": "checkbox",
+  "session_disable": "checkbox",
   "do_not_track_user_roles": "multi_select",
   "admin_permissions": "multi_select",
 
   "block_robot_enabled": "checkbox",
+  "exclude_blocked_robots": "multi_select",
   "block_ip_enabled": "checkbox",
   "blocked_ips": "multi_select",
 
@@ -33,6 +37,7 @@
   "woo_view_content_value_option": "radio",
   "woo_view_content_value_global": "number",
   "woo_enabled_save_data_to_orders": "checkbox",
+  "woo_enabled_display_data_to_orders": "checkbox",
   "woo_add_enrich_to_admin_email": "checkbox",
 
   "edd_add_to_cart_on_button_click": "checkbox",
@@ -50,6 +55,7 @@
   "edd_view_content_value_option": "radio",
   "edd_view_content_value_global": "number",
   "edd_enabled_save_data_to_orders": "checkbox",
+  "edd_enabled_display_data_to_orders": "checkbox",
 
   "custom_events_enabled": "checkbox",
 
@@ -61,6 +67,7 @@
   "gdpr_cookiebot_facebook_consent_category": "text",
   "gdpr_cookiebot_tiktok_consent_category": "text",
   "gdpr_cookiebot_analytics_consent_category": "text",
+  "gdpr_cookiebot_google_ads_consent_category": "text",
   "gdpr_cookiebot_pinterest_consent_category": "text",
   "gdpr_cookiebot_bing_consent_category": "text",
   "gdpr_cookie_notice_integration_enabled": "checkbox",
@@ -68,6 +75,11 @@
   "gdpr_ajax_enabled": "checkbox",
   "gdpr_real_cookie_banner_integration_enabled": "checkbox",
   "consent_magic_integration_enabled": "checkbox",
+
+  "woo_poas_enabled": "checkbox",
+  "woo_cog_source": "radio",
+  "woo_cog_wc_include_tax": "checkbox",
+  "woo_cog_wc_include_shipping": "checkbox",
 
   "woo_purchase_value_cog": "radio",
   "woo_content_value_cog": "radio",
@@ -82,7 +94,6 @@
   "edd_view_content_enabled":"checkbox",
   "edd_view_category_enabled":"checkbox",
 
-  "woo_complete_registration_enabled": "checkbox",
   "woo_purchase_enabled": "checkbox",
   "woo_initiate_checkout_enabled": "checkbox",
   "woo_remove_from_cart_enabled": "checkbox",
@@ -92,6 +103,12 @@
   "woo_view_cart_enabled" : "checkbox",
   "enable_event_url_param":"checkbox",
   "enable_remove_source_url_params":"checkbox",
+
+  "enable_CwCD" : "checkbox",
+  "aw_merchant_id": "text",
+  "aw_feed_country": "select",
+  "aw_feed_label": "text",
+  "aw_feed_language": "select",
 
   "enable_post_id_param": "checkbox",
   "enable_content_name_param": "checkbox",
@@ -122,6 +139,7 @@
   "automatic_event_comment_enabled":  "checkbox",
   "automatic_event_scroll_enabled":  "checkbox",
   "automatic_event_time_on_page_enabled":  "checkbox",
+  "automatic_event_404_enabled": "checkbox",
   "automatic_event_search_enabled":  "checkbox",
 
   "automatic_event_download_extensions": "tag_select",
@@ -134,5 +152,13 @@
 
   "send_external_id": "checkbox",
   "external_id_expire": "number",
-  "server_event_use_ajax" : "checkbox"
+  "external_id_use_transient": "checkbox",
+  "track_cookie_for_subdomains": "checkbox",
+  "server_event_use_ajax" : "checkbox",
+  "server_static_event_use_ajax": "checkbox",
+  "google_consent_mode": "checkbox",
+
+  "use_send_beacon": "checkbox",
+
+  "data_persistency": "radio"
 }

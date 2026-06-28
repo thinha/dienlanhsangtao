@@ -1,3 +1,11 @@
-<?php get_header(); ?>
+<?php
+/**
+ * Single-Popup Templates
+ *
+ * @package   PopupMaker
+ * @copyright Copyright (c) 2024, Code Atlantic LLC
+ */
 
-<?php get_footer(); ?>
+get_header();
+
+get_footer();

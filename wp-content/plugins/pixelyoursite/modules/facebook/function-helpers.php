@@ -3,6 +3,8 @@
 namespace PixelYourSite\Facebook\Helpers;
 
 use PixelYourSite;
+use function PixelYourSite\get_persistence_user_data;
+use function PixelYourSite\isWPMLActive;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit; // Exit if accessed directly.
@@ -17,13 +19,15 @@ function getAdvancedMatchingParams() {
 	$user = wp_get_current_user();
 
 	if ( $user->ID ) {
-
-		// get user regular data
-		$params['fn'] = $user->get( 'user_firstname' );
-		$params['ln'] = $user->get( 'user_lastname' );
-		$params['em'] = $user->get( 'user_email' );
-
+		$user_persistence_data = get_persistence_user_data( $user->get( 'user_email' ), $user->get( 'user_firstname' ), $user->get( 'user_lastname' ), '' );
+	} else {
+		$user_persistence_data = get_persistence_user_data( '', '', '', '' );
 	}
+
+	if ( !empty( $user_persistence_data[ 'fn' ] ) ) $params[ 'fn' ] = $user_persistence_data[ 'fn' ];
+	if ( !empty( $user_persistence_data[ 'ln' ] ) ) $params[ 'ln' ] = $user_persistence_data[ 'ln' ];
+	if ( !empty( $user_persistence_data[ 'em' ] ) ) $params[ 'em' ] = $user_persistence_data[ 'em' ];
+	if ( !empty( $user_persistence_data[ 'tel' ] ) ) $params[ 'ph' ] = $user_persistence_data[ 'tel' ];
 
 	/**
 	 * Add common WooCommerce Advanced Matching params
@@ -41,17 +45,20 @@ function getAdvancedMatchingParams() {
 			$params['ln'] = $user->get( 'billing_last_name' );
 		}
 
-		$params['ph'] = $user->get( 'billing_phone' );
+		$user_persistence_data = get_persistence_user_data( '', $params['fn'], $params['ln'], $user->get('billing_phone') );
+		if ( !empty( $user_persistence_data[ 'fn' ] ) ) $params[ 'fn' ] = $user_persistence_data[ 'fn' ];
+		if ( !empty( $user_persistence_data[ 'ln' ] ) ) $params[ 'ln' ] = $user_persistence_data[ 'ln' ];
+		if ( !empty( $user_persistence_data[ 'tel' ] ) ) $params[ 'ph' ] = $user_persistence_data[ 'tel' ];
+
 		$params['ct'] = $user->get( 'billing_city' );
 		$params['st'] = $user->get( 'billing_state' );
-
 		$params['country'] = $user->get( 'billing_country' );
 
 		/**
 		 * Add purchase WooCommerce Advanced Matching params
 		 */
 
-		if ( is_order_received_page() && isset( $_REQUEST['key'] ) && $_REQUEST['key'] != "" ) {
+		if ( PixelYourSite\PYS()->woo_is_order_received_page() && isset( $_REQUEST['key'] ) && $_REQUEST['key'] != "" ) {
             $order_key = sanitize_key($_REQUEST['key']);
             $cache_key = 'order_id_' . $order_key;
             $order_id = get_transient( $cache_key );
@@ -73,11 +80,12 @@ function getAdvancedMatchingParams() {
 
 				if ( PixelYourSite\isWooCommerceVersionGte( '3.0.0' ) ) {
 
+					$user_persistence_data = get_persistence_user_data( $order->get_billing_email(), $order->get_billing_first_name(), $order->get_billing_last_name(), $order->get_billing_phone() );
 					$params = array(
-						'em'      => $order->get_billing_email(),
-						'ph'      => $order->get_billing_phone(),
-						'fn'      => $order->get_billing_first_name(),
-						'ln'      => $order->get_billing_last_name(),
+						'em'      => $user_persistence_data['em'],
+						'ph'      => $user_persistence_data['tel'],
+						'fn'      => $user_persistence_data['fn'],
+						'ln'      => $user_persistence_data['ln'],
 						'ct'      => $order->get_billing_city(),
 						'st'      => $order->get_billing_state(),
 						'country' => $order->get_billing_country(),
@@ -85,22 +93,19 @@ function getAdvancedMatchingParams() {
 
 				} else {
 
+					$user_persistence_data = get_persistence_user_data( $order->billing_email, $order->billing_first_name, $order->billing_last_name, $order->billing_phone );
 					$params = array(
-						'em'      => $order->billing_email,
-						'ph'      => $order->billing_phone,
-						'fn'      => $order->billing_first_name,
-						'ln'      => $order->billing_last_name,
+						'em'      => $user_persistence_data['em'],
+						'ph'      => $user_persistence_data['tel'],
+						'fn'      => $user_persistence_data['fn'],
+						'ln'      => $user_persistence_data['ln'],
 						'ct'      => $order->billing_city,
 						'st'      => $order->billing_state,
 						'country' => $order->billing_country,
 					);
-
 				}
-
 			}
-
 		}
-
 	}
 
 	/**
@@ -132,31 +137,27 @@ function getAdvancedMatchingParams() {
 
 				if ( $payment = edd_get_payment( $payment_id ) ) {
 
-					// if first name is not set in regular wp user meta
-					if ( empty( $params['fn'] ) ) {
-						$params['fn'] = $payment->user_info['first_name'];
-					}
+					$user_first_name = !empty( $params[ 'fn' ] ) ? $params[ 'fn' ] : $payment->user_info[ 'first_name' ];
+					$user_last_name = !empty( $params[ 'ln' ] ) ? $params[ 'ln' ] : $payment->user_info[ 'last_name' ];
+					$user_persistence_data = get_persistence_user_data( '', $user_first_name, $user_last_name, '' );
 
-					// if last name is not set in regular wp user meta
-					if ( empty( $params['ln'] ) ) {
-						$params['ln'] = $payment->user_info['last_name'];
-					}
+					if ( !empty( $user_persistence_data[ 'fn' ] ) ) $params[ 'fn' ] = $user_persistence_data[ 'fn' ];
+					if ( !empty( $user_persistence_data[ 'ln' ] ) ) $params[ 'ln' ] = $user_persistence_data[ 'ln' ];
 
-					$params['ct'] = $payment->address['city'];
-					$params['st'] = $payment->address['state'];
+					$params[ 'ct' ] = $payment->address[ 'city' ];
+					$params[ 'st' ] = $payment->address[ 'state' ];
 
-					$params['country'] = $payment->address['country'];
-
+					$params[ 'country' ] = $payment->address[ 'country' ];
 				}
-
 			}
-
 		}
-
 	}
+
     if(PixelYourSite\EventsManager::isTrackExternalId()){
-        if (isset($_COOKIE['pbid'])) {
-            $params['external_id'] = $_COOKIE['pbid'];
+        if($user && $user->get( 'external_id' )){
+            $params['external_id'] = $user->get( 'external_id' );
+        } elseif (PixelYourSite\PYS()->get_pbid()) {
+            $params['external_id'] = PixelYourSite\PYS()->get_pbid();
         }
     }
 	$sanitized = array();
@@ -201,11 +202,38 @@ function sanitizeAdvancedMatchingParam( $value, $key ) {
  */
 function getFacebookWooProductContentId( $product_id ) {
 
-	if ( PixelYourSite\Facebook()->getOption( 'woo_content_id' ) == 'product_sku' ) {
-		$content_id = get_post_meta( $product_id, '_sku', true );
-	} else {
-		$content_id = $product_id;
+	if(isWPMLActive() && PixelYourSite\Facebook()->getOption( 'woo_wpml_unified_id' )) {
+		$wpml_product_id = apply_filters('wpml_original_element_id', NULL, $product_id);
+		if ($wpml_product_id) {
+			$product_id = $wpml_product_id;
+		}
 	}
+
+    if ( PixelYourSite\Facebook()->getOption( 'woo_content_id' ) == 'product_sku' ) {
+        $product = wc_get_product( $product_id );
+        if ($product && $product->is_type( 'variation' ) ) {
+            $content_id = $product->get_sku();
+            if ( empty( $content_id ) ) {
+                $parent_id = $product->get_parent_id();
+                $parent_product = wc_get_product( $parent_id );
+                if($parent_product){
+                    $content_id = $parent_product->get_sku();
+                }
+                if ( empty( $content_id ) ) {
+                    $content_id = $product_id;
+                }
+            }
+        } elseif($product) {
+            $content_id = $product->get_sku();
+            if ( empty( $content_id ) ) {
+                $content_id = $product_id;
+            }
+        } else {
+            $content_id = $product_id;
+        }
+    } else {
+        $content_id = $product_id;
+    }
 
 	$prefix = PixelYourSite\Facebook()->getOption( 'woo_content_id_prefix' );
 	$suffix = PixelYourSite\Facebook()->getOption( 'woo_content_id_suffix' );
@@ -583,25 +611,5 @@ function getFDPPurchaseEventParams() {
     );
 
 
-    return $params;
-}
-
-function getCompleteRegistrationOrderParams() {
-    $params = array();
-    $order_key = sanitize_key( $_REQUEST['key']);
-    $cache_key = 'order_id_' . $order_key;
-    $order_id = get_transient( $cache_key );
-    if ( empty($order_id) ) {
-        $order_id = (int) wc_get_order_id_by_order_key( $order_key );
-        set_transient( $cache_key, $order_id, HOUR_IN_SECONDS );
-    }
-    $order = new \WC_Order( $order_id );
-
-    $value_option   = PixelYourSite\Facebook()->getOption( 'woo_complete_registration_custom_value' );
-    $global_value   = PixelYourSite\Facebook()->getOption( 'woo_complete_registration_global_value', 0 );
-    $percents_value = PixelYourSite\Facebook()->getOption( 'woo_complete_registration_percent_value', 100 );
-
-    $params['value'] = PixelYourSite\getWooEventValueOrder( $value_option, $order, $global_value, $percents_value );
-    $params['currency'] = get_woocommerce_currency();
     return $params;
 }

@@ -1,7 +1,10 @@
 <?php
-/*******************************************************************************
- * Copyright (c) 2019, Code Atlantic LLC
- ******************************************************************************/
+/**
+ * Abstract for themes upgrade
+ *
+ * @package   PopupMaker
+ * @copyright Copyright (c) 2024, Code Atlantic LLC
+ */
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -39,8 +42,7 @@ abstract class PUM_Abstract_Upgrade_Themes extends PUM_Abstract_Upgrade_Posts im
 	 *
 	 * @param int $theme_id
 	 *
-	 * @return int $theme_id
+	 * @return void
 	 */
 	abstract public function process_theme( $theme_id = 0 );
-
 }

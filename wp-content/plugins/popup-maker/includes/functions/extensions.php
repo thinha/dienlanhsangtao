@@ -1,7 +1,10 @@
 <?php
-/*******************************************************************************
- * Copyright (c) 2019, Code Atlantic LLC
- ******************************************************************************/
+/**
+ * Functions for extensions
+ *
+ * @package   PopupMaker
+ * @copyright Copyright (c) 2024, Code Atlantic LLC
+ */
 
 // Exit if accessed directly
 if ( ! defined( 'ABSPATH' ) ) {
@@ -16,7 +19,7 @@ if ( ! defined( 'ABSPATH' ) ) {
  * @return mixed
  */
 function pum_enabled_extensions() {
-	return apply_filters( 'pum_enabled_extensions', array() );
+	return apply_filters( 'pum_enabled_extensions', [] );
 }
 
 /**

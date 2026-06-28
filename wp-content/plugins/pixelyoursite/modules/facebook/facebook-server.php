@@ -41,16 +41,23 @@ class FacebookServer {
 
 
     public function __construct() {
+        add_action('init', array($this, 'init'));
+    }
 
+    public function init()
+    {
         $this->isEnabled = Facebook()->enabled() && Facebook()->isServerApiEnabled();
         $this->isDebug = PYS()->getOption( 'debug_enabled' );
 
         if($this->isEnabled) {
-            add_action( 'woocommerce_checkout_update_order_meta',array($this,'saveFbTagsInOrder'),10, 2);
+            // Classic hook for checkout page
+            add_action( 'woocommerce_checkout_update_order_meta', array( $this, 'saveFbTagsInOrder' ), 10, 1 );
+            // Hook for Store API (passes WC_Order object instead of order_id)
+            add_action( 'woocommerce_store_api_checkout_update_order_meta', array( $this, 'saveFbTagsInOrder' ), 10, 1 );
             add_action( 'wp_ajax_pys_api_event',array($this,"catchAjaxEvent"));
             add_action( 'wp_ajax_nopriv_pys_api_event', array($this,"catchAjaxEvent"));
             add_action( 'woocommerce_remove_cart_item', array($this, 'trackRemoveFromCartEvent'), 10, 2);
-            add_action( 'woocommerce_add_to_cart', array($this, 'trackAddToCartEvent'), 40, 4);
+            //add_action( 'woocommerce_add_to_cart', array($this, 'trackAddToCartEvent'), 40, 4);
 
             //add_action( 'woocommerce_order_status_completed', array( $this, 'completed_purchase' ) );
             // initialize the s2s event async task
@@ -87,7 +94,10 @@ class FacebookServer {
 
         foreach ($events as $event) {
             $serverEvent = ServerEventHelper::mapEventToServerEvent($event);
-            $ids = $event->payload['pixelIds'];
+            $ids = $event->payload['pixelIds'] ?? null;
+            if ( empty( $ids ) ) {
+                continue; // Skip events with no destination pixels
+            }
 
             $this->sendEvent($ids,$serverEvent);
         }
@@ -167,15 +177,12 @@ class FacebookServer {
 
     function trackRemoveFromCartEvent ($cart_item_key,$cart) {
         $eventId = 'woo_remove_from_cart';
+        PYS()->getLog()->debug('trackRemoveFromCartEvent');
 
-        $url = $_SERVER['HTTP_HOST'].strtok($_SERVER["REQUEST_URI"], '?');
-        $postId = url_to_postid($url);
-        $cart_id = wc_get_page_id( 'cart' );
         $item = $cart->get_cart_item($cart_item_key);
 
 
-
-        if(PYS()->getOption( 'woo_remove_from_cart_enabled') && $cart_id==$postId) {
+        if(PYS()->getOption( 'woo_remove_from_cart_enabled')) {
             PYS()->getLog()->debug('trackRemoveFromCartEvent send fb server with out browser event');
             $event = new SingleEvent("woo_remove_from_cart",EventTypes::$STATIC,'woo');
             $event->args=['item'=>$item];
@@ -267,7 +274,9 @@ class FacebookServer {
             $this->access_token = Facebook()->getApiToken();
             $this->testCode = Facebook()->getApiTestCode();
         }
-
+        if ( (! is_array( $pixel_Ids ) && ! is_object( $pixel_Ids )) || empty( $pixel_Ids ) ) {
+            return;
+        }
         foreach($pixel_Ids  as $pixel_Id) {
 
             if(empty($this->access_token[$pixel_Id])) continue;
@@ -309,21 +318,20 @@ class FacebookServer {
         }
     }
 
-    public function saveFbTagsInOrder($order_id, $data) {
+    public function saveFbTagsInOrder($order_param) {
         $pysData = [];
         $pysData['fbc'] = ServerEventHelper::getFbc();
         $pysData['fbp'] = ServerEventHelper::getFbp();
-        $order = wc_get_order($order_id);
-        if ( isWooCommerceVersionGte('3.0.0') ) {
+        $order = wc_get_order($order_param);
+        if (isWooCommerceVersionGte('3.0.0') && !empty($order)) {
             // WooCommerce >= 3.0
-            if($order) {
-                $order->update_meta_data("pys_fb_cookie",$pysData);
+                $order->update_meta_data("pys_fb_cookie", $pysData);
                 $order->save();
-            }
-
         } else {
             // WooCommerce < 3.0
-            update_post_meta( $order_id, 'pys_fb_cookie', $pysData );
+            if(!empty($order_param)){
+                update_post_meta($order_param, 'pys_fb_cookie', $pysData);
+            }
         }
     }
 

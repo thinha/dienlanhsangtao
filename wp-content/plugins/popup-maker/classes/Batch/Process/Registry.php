@@ -1,7 +1,10 @@
 <?php
-/*******************************************************************************
- * Copyright (c) 2019, Code Atlantic LLC
- ******************************************************************************/
+/**
+ * Registry Batch Process
+ *
+ * @package   PopupMaker
+ * @copyright Copyright (c) 2024, Code Atlantic LLC
+ */
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -28,7 +31,6 @@ class PUM_Batch_Process_Registry extends PUM_Abstract_Registry {
 		if ( ! isset( self::$instance ) ) {
 			self::$instance = new self();
 			self::$instance->init();
-
 		}
 
 		return self::$instance;
@@ -43,7 +45,7 @@ class PUM_Batch_Process_Registry extends PUM_Abstract_Registry {
 		/**
 		 * Fires during instantiation of the batch processing registry.
 		 *
-		 * @param PUM_Batch_Process_Registry $this Registry instance.
+		 * @param PUM_Batch_Process_Registry $registry Registry instance.
 		 */
 		do_action( 'pum_batch_process_init', $this );
 	}
@@ -52,7 +54,6 @@ class PUM_Batch_Process_Registry extends PUM_Abstract_Registry {
 	 * Registers core batch processes.
 	 */
 	protected function register_core_processes() {
-
 	}
 
 	/**
@@ -69,7 +70,7 @@ class PUM_Batch_Process_Registry extends PUM_Abstract_Registry {
 	 * @return WP_Error|true True on successful registration, otherwise a WP_Error object.
 	 */
 	public function register_process( $batch_id, $process_args ) {
-		$process_args = wp_parse_args( $process_args,  array_fill_keys( array( 'class', 'file' ), '' ) );
+		$process_args = wp_parse_args( $process_args, array_fill_keys( [ 'class', 'file' ], '' ) );
 
 		if ( empty( $process_args['class'] ) ) {
 			return new WP_Error( 'invalid_batch_class', __( 'A batch process class must be specified.', 'popup-maker' ) );
@@ -80,7 +81,7 @@ class PUM_Batch_Process_Registry extends PUM_Abstract_Registry {
 		}
 
 		// 2 if Windows path.
-		if ( ! in_array( validate_file( $process_args['file'] ), array( 0, 2 ), true ) ) {
+		if ( ! in_array( validate_file( $process_args['file'] ), [ 0, 2 ], true ) ) {
 			return new WP_Error( 'invalid_batch_class_file', __( 'An invalid batch class handler file has been supplied.', 'popup-maker' ) );
 		}
 
@@ -95,5 +96,4 @@ class PUM_Batch_Process_Registry extends PUM_Abstract_Registry {
 	public function remove_process( $batch_id ) {
 		$this->remove_item( $batch_id );
 	}
-
 }

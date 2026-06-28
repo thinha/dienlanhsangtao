@@ -1,0 +1,46 @@
+.dmc-shipping-bulk-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 10px;
+  padding: 10px 12px;
+  background: #f6f7f7;
+  border: 1px solid #dcdcde;
+  border-radius: 4px;
+}
+
+.dmc-shipping-bulk-select-all {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  cursor: pointer;
+  user-select: none;
+}
+
+.dmc-shipping-bulk-delete:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.dmc-shipping-bulk-count {
+  color: #646970;
+  font-size: 12px;
+}
+
+.acf-field[data-key="field_tmp_shipping_locations"] .dmc-shipping-bulk-col {
+  width: 36px;
+  min-width: 36px;
+  text-align: center;
+  vertical-align: middle;
+}
+
+.acf-field[data-key="field_tmp_shipping_locations"] .dmc-shipping-bulk-checkbox {
+  margin: 0;
+}
+
+.acf-field.-invalid.dmc-tmp-field-invalid-flash {
+  box-shadow: 0 0 0 2px #d63638;
+  border-radius: 4px;
+}

@@ -2,7 +2,7 @@
   "enabled": true,
   "pixel_id": "",
   "advanced_matching_enabled": false,
-  "remove_metadata": false,
+  "remove_metadata": true,
 
   "general_event_enabled": true,
   "comment_event_enabled": true,
@@ -14,6 +14,8 @@
   "woo_content_id_prefix": "",
   "woo_content_id_suffix": "",
   "woo_content_id_logic": "default",
+  "woo_wpml_unified_id": false,
+
   "woo_purchase_enabled": true,
   "woo_initiate_checkout_enabled": true,
   "woo_remove_from_cart_enabled": true,
@@ -53,15 +55,6 @@
   "test_api_event_code": "",
   "test_api_event_code_expiration_at": "",
 
-  "complete_registration_event_enabled" : true,
-  "woo_complete_registration_fire_every_time": false,
-  "woo_complete_registration_use_custom_value": true,
-  "woo_complete_registration_custom_value": "price",
-  "woo_complete_registration_percent_value": "",
-  "woo_complete_registration_global_value": "",
-  "woo_complete_registration_custom_value_old": "",
-  "woo_complete_registration_send_from_server": true,
-
   "verify_meta_tag": "",
 
   "automatic_event_form_enabled": true,
@@ -71,5 +64,9 @@
   "automatic_event_comment_enabled": true,
   "automatic_event_scroll_enabled": true,
   "automatic_event_time_on_page_enabled": true,
-  "automatic_event_search_enabled": true
+  "automatic_event_search_enabled": true,
+
+  "disable_noscript": false,
+  "enabled_medical": false,
+  "do_not_track_medical_param": [ "event_url", "post_title", "page_title", "landing_page","content_name", "categories", "category_name", "tags" ]
 }

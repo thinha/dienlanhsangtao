@@ -1,7 +1,10 @@
 <?php
-/*******************************************************************************
- * Copyright (c) 2019, Code Atlantic LLC
- ******************************************************************************/
+/**
+ * Class for Admin Tools
+ *
+ * @package   PopupMaker
+ * @copyright Copyright (c) 2024, Code Atlantic LLC
+ */
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -15,40 +18,45 @@ class PUM_Admin_Tools {
 	/**
 	 * @var array
 	 */
-	public static $notices = array();
+	public static $notices = [];
 
 	/**
 	 * Initializes the "Tools" page.
 	 */
 	public static function init() {
-		add_action( 'admin_notices', array( __CLASS__, 'notices' ) );
-		add_action( 'admin_init', array( __CLASS__, 'emodal_process_import' ) );
-		add_action( 'pum_tools_page_tab_betas', array( __CLASS__, 'betas_display' ) );
-		add_action( 'pum_tools_page_tab_error_log', array( __CLASS__, 'errorlog_display' ) );
-		add_action( 'pum_tools_page_tab_action_scheduler', array( __CLASS__, 'action_scheduler_display' ) );
-		add_action( 'pum_tools_page_tab_import', array( __CLASS__, 'import_display' ) );
-		add_action( 'pum_save_enabled_betas', array( __CLASS__, 'save_enabled_betas' ) );
-		add_action( 'pum_empty_error_log', array( __CLASS__, 'error_log_empty' ) );
+		add_action( 'admin_notices', [ __CLASS__, 'notices' ] );
+		add_action( 'admin_init', [ __CLASS__, 'emodal_process_import' ] );
+		add_action( 'pum_tools_page_tab_betas', [ __CLASS__, 'betas_display' ] );
+		add_action( 'pum_tools_page_tab_error_log', [ __CLASS__, 'errorlog_display' ] );
+		add_action( 'pum_tools_page_tab_action_scheduler', [ __CLASS__, 'action_scheduler_display' ] );
+		add_action( 'pum_tools_page_tab_import', [ __CLASS__, 'import_display' ] );
+		add_action( 'pum_save_enabled_betas', [ __CLASS__, 'save_enabled_betas' ] );
+		add_action( 'pum_empty_error_log', [ __CLASS__, 'error_log_empty' ] );
 	}
 
 	/**
 	 * Displays any saved admin notices.
 	 */
 	public static function notices() {
-
+		// Ignored because this is a simple boolean check after a redirect for success indicator.
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended
 		if ( isset( $_GET['imported'] ) ) {
 			?>
 			<div class="updated">
-				<p><?php esc_html_e( 'Successfully Imported your themes &amp; modals from Easy Modal.' ); ?></p>
+				<p><?php esc_html_e( 'Successfully Imported your themes &amp; modals from Easy Modal.', 'popup-maker' ); ?></p>
 			</div>
 			<?php
 		}
 
+		// Ignored because this is a simple boolean check after a redirect for success indicator.
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended
 		if ( isset( $_GET['success'] ) && get_option( 'pum_settings_admin_notice' ) ) {
-			self::$notices[] = array(
-				'type'    => $_GET['success'] ? 'success' : 'error',
+			self::$notices[] = [
+				// Ignored because this is a simple boolean check after a redirect for success indicator.
+				// phpcs:ignore WordPress.Security.NonceVerification.Recommended
+				'type'    => (bool) $_GET['success'] ? 'success' : 'error',
 				'message' => get_option( 'pum_settings_admin_notice' ),
-			);
+			];
 
 			delete_option( 'pum_settings_admin_notice' );
 		}
@@ -71,8 +79,8 @@ class PUM_Admin_Tools {
 	 * Render settings page with tabs.
 	 */
 	public static function page() {
+		$active_tab = self::get_active_tab();
 
-		$active_tab = isset( $_GET['tab'] ) && array_key_exists( $_GET['tab'], self::tabs() ) ? $_GET['tab'] : 'system_info';
 		wp_enqueue_style( 'pum-admin-general' );
 		?>
 
@@ -87,13 +95,13 @@ class PUM_Admin_Tools {
 					<?php
 					foreach ( self::tabs() as $tab_id => $tab_name ) {
 						$tab_url = add_query_arg(
-							array(
+							[
 								'tools-updated' => false,
 								'tab'           => $tab_id,
-							)
+							]
 						);
 
-						printf( '<a href="%s" title="%s" class="nav-tab %s">%s</a>', esc_url( $tab_url ), esc_attr( $tab_name ), $active_tab == $tab_id ? ' nav-tab-active' : '', esc_html( $tab_name ) );
+						printf( '<a href="%s" title="%s" class="nav-tab %s">%s</a>', esc_url( $tab_url ), esc_attr( $tab_name ), $active_tab === $tab_id ? ' nav-tab-active' : '', esc_html( $tab_name ) );
 					}
 					?>
 				</h2>
@@ -121,12 +129,11 @@ class PUM_Admin_Tools {
 		if ( ! isset( $tabs ) ) {
 			$tabs = apply_filters(
 				'pum_tools_tabs',
-				array(
-					'betas'            => __( 'Beta Versions', 'popup-maker' ),
-					'error_log'        => __( 'Error Log', 'popup-maker' ),
-					'action_scheduler' => __( 'Scheduled Actions', 'popup-maker' ),
-					'import'           => __( 'Import / Export', 'popup-maker' ),
-				)
+				[
+					'betas'     => __( 'Beta Versions', 'popup-maker' ),
+					'error_log' => __( 'Error Log', 'popup-maker' ),
+					'import'    => __( 'Import / Export', 'popup-maker' ),
+				]
 			);
 
 			/** @deprecated 1.7.0 */
@@ -145,7 +152,7 @@ class PUM_Admin_Tools {
 	 * @since       1.5
 	 */
 	public static function get_beta_enabled_extensions() {
-		return apply_filters( 'pum_beta_enabled_extensions', array() );
+		return apply_filters( 'pum_beta_enabled_extensions', [] );
 	}
 
 	/**
@@ -154,7 +161,11 @@ class PUM_Admin_Tools {
 	public static function get_active_tab() {
 		$tabs = self::tabs();
 
-		return isset( $_GET['tab'] ) && array_key_exists( $_GET['tab'], $tabs ) ? sanitize_text_field( $_GET['tab'] ) : key( $tabs );
+		// Ignored because this is a simple check for a valid tab in the URL.
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended
+		$tab = isset( $_GET['tab'] ) ? sanitize_key( wp_unslash( $_GET['tab'] ) ) : '';
+
+		return array_key_exists( $tab, $tabs ) ? $tab : key( $tabs );
 	}
 
 	/**
@@ -184,7 +195,15 @@ class PUM_Admin_Tools {
 							<th scope="row"><?php echo esc_html( $product ); ?></th>
 							<td>
 								<input type="checkbox" name="enabled_betas[<?php echo esc_attr( $slug ); ?>]" id="enabled_betas[<?php echo esc_attr( $slug ); ?>]"<?php echo checked( $checked, true, false ); ?> value="1" />
-								<label for="enabled_betas[<?php echo esc_attr( $slug ); ?>]"><?php printf( __( 'Get updates for pre-release versions of %s', 'popup-maker' ), $product ); ?></label>
+								<label for="enabled_betas[<?php echo esc_attr( $slug ); ?>]">
+									<?php
+										printf(
+											/* translators: 1. Product name. */
+											esc_html__( 'Get updates for pre-release versions of %s', 'popup-maker' ),
+											esc_attr( $product )
+										);
+									?>
+								</label>
 							</td>
 						</tr>
 					<?php endforeach; ?>
@@ -206,16 +225,20 @@ class PUM_Admin_Tools {
 	 * @since 1.12.0
 	 */
 	public static function errorlog_display() {
+		$enabled = PUM_Utils_Logging::instance()->enabled();
+
 		?>
-		<h2>Error Log</h2>
+		<h2>Error Log<?php echo esc_html( $enabled ? '' : ' (disabled)' ); ?></h2>
+		<?php if ( $enabled ) : ?>
 		<a target="_blank" rel="noreferrer noopener" href="<?php echo esc_url( PUM_Utils_Logging::instance()->get_file_url() ); ?>" download="pum-debug.log" class="button button-primary button-with-icon"><i class="dashicons dashicons-download"></i>Download Error Log</a>
 		<form action="" method="POST">
 			<input type="hidden" name="pum_action" value="empty_error_log" />
 			<?php wp_nonce_field( 'pum_popup_empty_log_nonce', 'pum_popup_empty_log_nonce' ); ?>
 			<?php submit_button( 'Empty Error Log', '', 'popmake-empty-log', false ); ?>
 		</form>
+		<?php endif; ?>
 		<div id="log-viewer">
-			<pre><?php echo esc_html( self::display_error_log() ); ?></pre>
+			<pre><?php echo wp_kses( self::display_error_log(), wp_kses_allowed_html( 'data' ) ); ?></pre>
 		</div>
 		<?php
 	}
@@ -245,7 +268,9 @@ class PUM_Admin_Tools {
 		<button id="popmake_emodal_v2_import" name="popmake_emodal_v2_import" class="button button-large">
 			<?php esc_html_e( 'Import From Easy Modal v2', 'popup-maker' ); ?>
 		</button>
+		
 		<?php
+		wp_nonce_field( 'popmake_emodal_v2_import', 'popmake_emodal_v2_import_nonce' );
 	}
 
 	/**
@@ -263,9 +288,14 @@ class PUM_Admin_Tools {
 	 * @since 1.12.0
 	 */
 	public static function error_log_empty() {
-		if ( ! is_user_logged_in() || ! current_user_can( 'manage_options' ) || ! wp_verify_nonce( $_POST['pum_popup_empty_log_nonce'], 'pum_popup_empty_log_nonce' ) ) {
+		if ( ! is_user_logged_in() || ! current_user_can( 'manage_options' ) ) {
 			return;
 		}
+
+		if ( ! isset( $_POST['pum_popup_empty_log_nonce'] ) || ! wp_verify_nonce( sanitize_key( wp_unslash( $_POST['pum_popup_empty_log_nonce'] ) ), 'pum_popup_empty_log_nonce' ) ) {
+			return;
+		}
+
 		PUM_Utils_Logging::instance()->clear_log();
 	}
 
@@ -273,11 +303,17 @@ class PUM_Admin_Tools {
 	 * Process em import.
 	 */
 	public static function emodal_process_import() {
-		if ( ! isset( $_REQUEST['popmake_emodal_v2_import'] ) ) {
+		if (
+			! isset( $_REQUEST['popmake_emodal_v2_import'] ) ||
+			! isset( $_REQUEST['popmake_emodal_v2_import_nonce'] ) ||
+			! wp_verify_nonce( sanitize_key( wp_unslash( $_REQUEST['popmake_emodal_v2_import_nonce'] ) ), 'popmake_emodal_v2_import_nonce' ) ||
+			! current_user_can( 'manage_options' )
+		) {
 			return;
 		}
+
 		popmake_emodal_v2_import();
-		wp_redirect( admin_url( 'edit.php?post_type=popup&page=pum-tools&imported=1' ), 302 );
+		wp_safe_redirect( admin_url( 'edit.php?post_type=popup&page=pum-tools&imported=1' ), 302 );
 	}
 
 	/**
@@ -286,7 +322,7 @@ class PUM_Admin_Tools {
 	 * @since       1.5
 	 */
 	public static function save_enabled_betas() {
-		if ( ! wp_verify_nonce( $_POST['pum_save_betas_nonce'], 'pum_save_betas_nonce' ) ) {
+		if ( ! isset( $_POST['pum_save_betas_nonce'] ) || ! wp_verify_nonce( sanitize_key( wp_unslash( $_POST['pum_save_betas_nonce'] ) ), 'pum_save_betas_nonce' ) ) {
 			return;
 		}
 
@@ -297,11 +333,13 @@ class PUM_Admin_Tools {
 		if ( ! empty( $_POST['enabled_betas'] ) ) {
 			$enabled_betas = array_filter(
 				array_map(
-					array(
+					[
 						__CLASS__,
 						'enabled_betas_sanitize_value',
-					),
-					$_POST['enabled_betas']
+					],
+					// Ignored as this is a list of checked boxes (booleans).
+					// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
+					wp_unslash( $_POST['enabled_betas'] )
 				)
 			);
 			PUM_Utils_Options::update( 'enabled_betas', $enabled_betas );
@@ -331,7 +369,7 @@ class PUM_Admin_Tools {
 	 * @since       1.5
 	 */
 	public static function extension_has_beta_support( $slug ) {
-		$enabled_betas = PUM_Utils_Options::get( 'enabled_betas', array() );
+		$enabled_betas = PUM_Utils_Options::get( 'enabled_betas', [] );
 		$return        = false;
 
 		if ( array_key_exists( $slug, $enabled_betas ) ) {
@@ -348,6 +386,14 @@ class PUM_Admin_Tools {
 	 * @since 1.12.0
 	 */
 	public static function display_error_log() {
-		return PUM_Utils_Logging::instance()->get_log();
+		$logger = PUM_Utils_Logging::instance();
+
+		if ( ! $logger->enabled() ) {
+			return __( 'Debug logging is disabled.', 'popup-maker' );
+		}
+
+		// $logger->log( 'Log viewed from Tools page' );
+
+		return $logger->get_log();
 	}
 }

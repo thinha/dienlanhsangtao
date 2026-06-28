@@ -8,6 +8,8 @@
 
 defined( 'ABSPATH' ) || exit;
 
+use Automattic\WooCommerce\Enums\ProductStockStatus;
+
 /**
  * Widget products.
  */
@@ -20,7 +22,7 @@ class WC_Widget_Products extends WC_Widget {
 		$this->widget_cssclass    = 'woocommerce widget_products';
 		$this->widget_description = __( "A list of your store's products.", 'woocommerce' );
 		$this->widget_id          = 'woocommerce_products';
-		$this->widget_name        = __( 'Products', 'woocommerce' );
+		$this->widget_name        = __( 'Products list', 'woocommerce' );
 		$this->settings           = array(
 			'title'       => array(
 				'type'  => 'text',
@@ -50,10 +52,11 @@ class WC_Widget_Products extends WC_Widget {
 				'std'     => 'date',
 				'label'   => __( 'Order by', 'woocommerce' ),
 				'options' => array(
-					'date'  => __( 'Date', 'woocommerce' ),
-					'price' => __( 'Price', 'woocommerce' ),
-					'rand'  => __( 'Random', 'woocommerce' ),
-					'sales' => __( 'Sales', 'woocommerce' ),
+					'menu_order' => __( 'Menu order', 'woocommerce' ),
+					'date'       => __( 'Date', 'woocommerce' ),
+					'price'      => __( 'Price', 'woocommerce' ),
+					'rand'       => __( 'Random', 'woocommerce' ),
+					'sales'      => __( 'Sales', 'woocommerce' ),
 				),
 			),
 			'order'       => array(
@@ -131,7 +134,7 @@ class WC_Widget_Products extends WC_Widget {
 				array(
 					'taxonomy' => 'product_visibility',
 					'field'    => 'term_taxonomy_id',
-					'terms'    => $product_visibility_term_ids['outofstock'],
+					'terms'    => $product_visibility_term_ids[ ProductStockStatus::OUT_OF_STOCK ],
 					'operator' => 'NOT IN',
 				),
 			); // WPCS: slow query ok.
@@ -153,6 +156,9 @@ class WC_Widget_Products extends WC_Widget {
 		}
 
 		switch ( $orderby ) {
+			case 'menu_order':
+				$query_args['orderby'] = 'menu_order';
+				break;
 			case 'price':
 				$query_args['meta_key'] = '_price'; // WPCS: slow query ok.
 				$query_args['orderby']  = 'meta_value_num';
@@ -185,6 +191,8 @@ class WC_Widget_Products extends WC_Widget {
 		}
 
 		ob_start();
+
+		wc_set_loop_prop( 'name', 'widget' );
 
 		$products = $this->get_products( $args, $instance );
 		if ( $products && $products->have_posts() ) {

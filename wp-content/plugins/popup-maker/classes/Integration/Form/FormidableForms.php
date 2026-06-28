@@ -1,7 +1,10 @@
 <?php
-/************************************
- * Copyright (c) 2020, Popup Maker
- ************************************/
+/**
+ * Integration for FormidableForms Form
+ *
+ * @package   PopupMaker
+ * @copyright Copyright (c) 2024, Code Atlantic LLC
+ */
 
 /**
  * Handles the integration with Formidable Forms (https://wordpress.org/plugins/formidable/)
@@ -23,7 +26,7 @@ class PUM_Integration_Form_FormidableForms extends PUM_Abstract_Integration_Form
 	 * Could be used for other initiations as well where needed.
 	 */
 	public function __construct() {
-		add_action( 'frm_after_create_entry', array( $this, 'on_success' ), 1, 2 );
+		add_action( 'frm_after_create_entry', [ $this, 'on_success' ], 1, 2 );
 	}
 
 	/**
@@ -32,7 +35,8 @@ class PUM_Integration_Form_FormidableForms extends PUM_Abstract_Integration_Form
 	 * @return string
 	 */
 	public function label() {
-		return __( 'Formidable Forms' );
+		// phpcs:ignore WordPress.WP.I18n.TextDomainMismatch -- Use Formidable Forms' own translations.
+		return __( 'Formidable Forms', 'formidable' );
 	}
 
 	/**
@@ -91,15 +95,19 @@ class PUM_Integration_Form_FormidableForms extends PUM_Abstract_Integration_Form
 
 		// Determine if form has AJAX submission enabled. Only do our form submission method if AJAX is not enabled.
 		$form = $this->get_form( intval( $form_id ) );
-		if ( isset( $form->options['ajax_submit'] ) && true == $form->options['ajax_submit'] ) {
+		if ( isset( $form->options['ajax_submit'] ) && true === $form->options['ajax_submit'] ) {
 			return;
 		}
 
-		if ( ! self::should_process_submission() ) {
+		if ( ! $this->should_process_submission() ) {
 			return;
 		}
-		$popup_id = self::get_popup_id();
-		self::increase_conversion( $popup_id );
+
+		$popup_id = $this->get_popup_id();
+
+		if ( $popup_id ) {
+			$this->increase_conversion( $popup_id );
+		}
 
 		pum_integrated_form_submission(
 			[

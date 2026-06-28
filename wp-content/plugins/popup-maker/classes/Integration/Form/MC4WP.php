@@ -1,7 +1,10 @@
 <?php
-/*******************************************************************************
- * Copyright (c) 2020, WP Popup Maker
- ******************************************************************************/
+/**
+ * Integration for MC4WP Form
+ *
+ * @package   PopupMaker
+ * @copyright Copyright (c) 2024, Code Atlantic LLC
+ */
 
 class PUM_Integration_Form_MC4WP extends PUM_Abstract_Integration_Form {
 
@@ -18,7 +21,8 @@ class PUM_Integration_Form_MC4WP extends PUM_Abstract_Integration_Form {
 	 * @return string
 	 */
 	public function label() {
-		return __( 'MailChimp for WordPress' );
+		// phpcs:ignore WordPress.WP.I18n.TextDomainMismatch
+		return __( 'MailChimp for WordPress', 'mc4wp' );
 	}
 
 	/**

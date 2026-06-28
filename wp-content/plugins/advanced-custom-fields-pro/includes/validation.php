@@ -6,6 +6,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 if ( ! class_exists( 'acf_validation' ) ) :
 
+	#[\AllowDynamicProperties]
 	class acf_validation {
 
 

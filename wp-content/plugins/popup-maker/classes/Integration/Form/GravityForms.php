@@ -1,7 +1,10 @@
 <?php
-/*******************************************************************************
- * Copyright (c) 2020, WP Popup Maker
- ******************************************************************************/
+/**
+ * Integration for GravityForms Form
+ *
+ * @package   PopupMaker
+ * @copyright Copyright (c) 2024, Code Atlantic LLC
+ */
 
 class PUM_Integration_Form_GravityForms extends PUM_Abstract_Integration_Form {
 
@@ -11,14 +14,15 @@ class PUM_Integration_Form_GravityForms extends PUM_Abstract_Integration_Form {
 	public $key = 'gravityforms';
 
 	public function __construct() {
-		add_action( 'gform_after_submission', array( $this, 'on_success' ), 10, 2 );
+		add_action( 'gform_after_submission', [ $this, 'on_success' ], 10, 2 );
 	}
 
 	/**
 	 * @return string
 	 */
 	public function label() {
-		return 'Gravity Forms';
+		// phpcs:ignore WordPress.WP.I18n.TextDomainMismatch -- Use Gravity Forms' own translations.
+		return __( 'Gravity Forms', 'gravityforms' );
 	}
 
 	/**
@@ -65,23 +69,29 @@ class PUM_Integration_Form_GravityForms extends PUM_Abstract_Integration_Form {
 	 * @param $form
 	 */
 	public function on_success( $entry, $form ) {
-		if ( ! self::should_process_submission() ) {
+		if ( ! $this->should_process_submission() ) {
 			return;
 		}
 
-		// This key is set when Gravity Forms is submitted via AJAX.
+		// This key is set when Gravity Forms is submitted via AJAX. Ignored because this is a simple boolean check.
+		// phpcs:ignore WordPress.Security.NonceVerification.Missing
 		if ( isset( $_POST['gform_ajax'] ) && ! is_null( $_POST['gform_ajax'] ) ) {
 			return;
 		}
 
-		$popup_id = self::get_popup_id();
-		self::increase_conversion( $popup_id );
+		$popup_id = $this->get_popup_id();
 
-		pum_integrated_form_submission( [
-			'popup_id'      => $popup_id,
-			'form_provider' => $this->key,
-			'form_id'       => $form['id'],
-		] );
+		if ( $popup_id ) {
+			$this->increase_conversion( $popup_id );
+		}
+
+		pum_integrated_form_submission(
+			[
+				'popup_id'      => $popup_id,
+				'form_provider' => $this->key,
+				'form_id'       => $form['id'],
+			]
+		);
 	}
 
 	/**

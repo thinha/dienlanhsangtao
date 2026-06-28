@@ -7,6 +7,23 @@ class SingleEvent extends PYSEvent{
     public $payload = array(
         'delay' => 0
     );
+    private $ecommerceParamArray = array(
+        'currency',
+        'value',
+        'items',
+        'tax',
+        'shipping',
+        'coupon',
+        'affiliation',
+        'fees',
+        'new_customer',
+        'transaction_id',
+        'total_value',
+        'ecomm_prodid',
+        'ecomm_pagetype',
+        'ecomm_totalvalue'
+    );
+
 
     public function __construct($id,$type,$category=''){
         parent::__construct($id,$type,$category);
@@ -19,9 +36,25 @@ class SingleEvent extends PYSEvent{
      * @param array $data
      */
     function addParams($data) {
-
+        if (is_string($data)) {
+            $decoded = json_decode($data, true);
+            if (is_array($decoded)) {
+                $data = $decoded;
+            }
+        }
         if(is_array($data)) {
-            $this->params = array_merge($this->params,$data);
+            if (isset($this->params['triggerType']['type']) && $this->params['triggerType']['type'] === 'ecommerce') {
+                foreach ( $data as $key => $value ) {
+                    if ( in_array( $key, $this->ecommerceParamArray ) ) {
+                        $this->params['ecommerce'][ $key ] = $data[ $key ];
+                    } else {
+                        $this->params[ $key ] = $data[ $key ];
+                    }
+                }
+            }
+            else{
+                $this->params = array_merge($this->params, $data);
+            }
         } else {
             error_log("addParams no array ".print_r($data,true));
         }
@@ -55,6 +88,37 @@ class SingleEvent extends PYSEvent{
         $data['woo_order'] = isset( $this->payload['woo_order'] ) ? $this->payload['woo_order'] : "";
         $data['edd_order'] = isset( $this->payload['edd_order'] ) ? $this->payload['edd_order'] : "";
 
+        // Defense in Depth: this payload is consumed by wp_localize_script() in
+        // EventsManager. Although wp_localize_script() JSON-encodes the array
+        // (which is JS-safe), we additionally normalize scalar string control
+        // fields with sanitize_text_field() so any stray HTML/JS payload that
+        // slipped through addParams()/addPayload() cannot reach the JS context.
+        // esc_js()/esc_attr() are intentionally NOT applied here because the
+        // same structure feeds the server-side Conversions API senders, where
+        // such escaping would corrupt outbound data.
+        $scalar_string_fields = array( 'e_id', 'eventID', 'type', 'name');
+        foreach ( $scalar_string_fields as $field ) {
+            if ( isset( $data[ $field ] ) && is_string( $data[ $field ] ) ) {
+                $data[ $field ] = sanitize_text_field( $data[ $field ] );
+            }
+        }
+
         return $data;
+    }
+    function getPayloadValue($key) {
+        if(isset($this->payload[$key]))
+            return $this->payload[$key];
+        return null;
+    }
+    function removeParam($key) {
+        if (isset($this->params[$key])) {
+            unset($this->params[$key]);
+        }
+    }
+
+    function removePayload($key) {
+        if (isset($this->payload[$key])) {
+            unset($this->payload[$key]);
+        }
     }
 }

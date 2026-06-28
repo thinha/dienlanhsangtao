@@ -3,6 +3,7 @@
 namespace PDFEmbedder;
 
 use PDFEmbedder\Tasks\Tasks;
+use PDFEmbedder\Helpers\Check;
 use PDFEmbedder\Helpers\Assets;
 use PDFEmbedder\Helpers\Multisite;
 use PDFEmbedder\Shortcodes\PdfEmbedder;
@@ -73,7 +74,7 @@ final class Plugin {
 	 *
 	 * @since 4.7.0
 	 */
-	public function hooks() {
+	public function hooks(): void {
 
 		// Initialize Action Scheduler tasks a bit earlier than the rest of the plugin.
 		add_action( 'init', [ $this->tasks, 'init' ], 5 );
@@ -85,6 +86,8 @@ final class Plugin {
 			Multisite::is_network_activated() ? 'network_admin_menu' : 'admin_menu',
 			[ $this->admin, 'register_menu' ]
 		);
+
+		add_filter( 'pdfemb_options_validated', [ pdf_embedder()->options(), 'validate_options' ], 0, 2 );
 
 		add_action( 'admin_init', [ $this, 'hook_admin_init' ] );
 
@@ -104,11 +107,17 @@ final class Plugin {
 	 *
 	 * @since 4.7.0
 	 */
-	public function hook_init() { // phpcs:ignore WPForms.PHP.HooksMethod.InvalidPlaceForAddingHooks
+	public function hook_init(): void { // phpcs:ignore WPForms.PHP.HooksMethod.InvalidPlaceForAddingHooks
+
+		if ( wp_doing_cron() || Check::is_heartbeat() ) {
+			return;
+		}
 
 		$shortcode = new PdfEmbedder();
 
 		add_shortcode( PdfEmbedder::TAG, [ $shortcode, 'render' ] );
+
+		( new Viewer\EditorPreview() )->hooks();
 
 		register_block_type(
 			PDFEMB_PLUGIN_DIR . 'block/build/block.json',
@@ -116,6 +125,8 @@ final class Plugin {
 				'render_callback' => [ $shortcode, 'render' ],
 			]
 		);
+
+		wp_set_script_translations( 'pdfemb-pdf-embedder-viewer-editor-script', 'pdf-embedder' );
 
 		add_action( 'enqueue_block_assets', [ $this, 'enqueue_block_assets' ] );
 
@@ -128,20 +139,20 @@ final class Plugin {
 	 *
 	 * @since 4.7.0
 	 */
-	public function enqueue_scripts() {
+	public function enqueue_scripts(): void {
 
 		// PDF.js library.
 		wp_register_script(
 			'pdfemb_pdfjs',
 			Assets::url( 'js/pdfjs/pdf.js' ),
 			[ 'jquery' ],
-			'2.2.228',
+			'2.16.105',
 			false
 		);
 
 		wp_register_script(
 			'pdfemb_embed_pdf',
-			Assets::url( 'js/pdfemb.js' ),
+			Assets::url( 'js/pdfemb.min.js', false ),
 			[ 'jquery', 'pdfemb_pdfjs' ],
 			Assets::ver(),
 			false
@@ -177,7 +188,7 @@ final class Plugin {
 	 *
 	 * @since 4.8.0
 	 */
-	public function enqueue_block_assets() {
+	public function enqueue_block_assets(): void {
 
 		if ( ! is_admin() ) {
 			return;
@@ -204,9 +215,37 @@ final class Plugin {
 			$processed[ str_replace( 'pdfemb_', '', $key ) ] = $value;
 		}
 
-		$data = 'const pdfembPluginOptions=' . wp_json_encode( $processed ) . ';';
+		// Add current plan information for frontend use.
+		$processed['plan'] = 'lite';
 
-		wp_add_inline_script( 'pdfemb-pdf-embedder-viewer-editor-script', $data, 'before' );
+		// License key is sensitive; never expose it as it's not needed in the Block Editor anyways.
+		unset( $processed['license_key'] );
+
+		/**
+		 * Data to be made available to block editor script.
+		 *
+		 * @since 4.9.3
+		 *
+		 * @param array $processed Processed/cleaned options data.
+		 */
+		$data = (array) apply_filters( 'pdfemb_enqueue_block_assets_data', $processed );
+
+		// Re-apply contract-critical values after the filter so a misbehaving
+		// third-party hook cannot strip or rewrite them. The block JS hard-fails
+		// without `homeUrl` (which would otherwise resolve to the host root on
+		// subdirectory installs and produce a broken iframe), and the
+		// editor-preview route is inert without `editorPreviewNonce`.
+		$data['homeUrl']            = home_url( '/' );
+		$data['editorPreviewNonce'] = wp_create_nonce( Viewer\EditorPreview::NONCE_ACTION );
+
+		// Assign to `window` rather than declaring a `const`: top-level `const`
+		// in a classic script lives in the shared Script Lexical Environment
+		// but is NOT exposed as a property of `window`. The block bundle reads
+		// `window.pdfembPluginOptions.<key>`, which would resolve to undefined
+		// and silently break feature gates (e.g. `editorPreviewNonce`).
+		$json = 'window.pdfembPluginOptions=' . wp_json_encode( $data ) . ';';
+
+		wp_add_inline_script( 'pdfemb-pdf-embedder-viewer-editor-script', $json, 'before' );
 	}
 
 	/**
@@ -214,7 +253,7 @@ final class Plugin {
 	 *
 	 * @since 4.7.0
 	 */
-	public function hook_admin_init() {
+	public function hook_admin_init(): void {
 
 		$this->admin->init();
 		$this->admin->hooks();
@@ -287,7 +326,16 @@ final class Plugin {
 	 *
 	 * @since 4.7.0
 	 */
-	public static function activated() {
+	public static function activated(): void {
+
+		$options = pdf_embedder()->options();
+
+		if ( ! $options->exist() ) {
+			$options->save(
+				$options->get(),
+				'settings'
+			);
+		}
 
 		// Activation time, added only once.
 		add_option( 'wppdf_emb_activation', time(), '', 'no' );

@@ -109,6 +109,10 @@ class SetupWizard {
 	 */
 	public function maybe_redirect_after_activation() { // phpcs:ignore Generic.Metrics.CyclomaticComplexity.TooHigh
 
+		if ( ! current_user_can( 'activate_plugins' ) ) {
+			return;
+		}
+
 		if ( wp_doing_ajax() || wp_doing_cron() ) {
 			return;
 		}
@@ -126,7 +130,7 @@ class SetupWizard {
 		}
 
 		// Only do this for single site installs.
-		if ( isset( $_GET['activate-multi'] ) || is_network_admin() ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+		if ( isset( $_GET['activate-multi'] ) || is_network_admin() || WP::use_global_plugin_settings() ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
 			return;
 		}
 
@@ -230,10 +234,14 @@ class SetupWizard {
 				'public_url'         => easy_wp_smtp()->assets_url . '/vue/',
 				'current_user_email' => wp_get_current_user()->user_email,
 				'completed_time'     => self::get_stats()['completed_time'],
+				'sendlayer'          => [
+					'connect_nonce' => wp_create_nonce( 'easy-wp-smtp-sendlayer-connect' ),
+					'return_url'    => self::get_site_url() . '#/step/configure_mailer/sendlayer',
+				],
 				'education'          => [
 					'upgrade_text'        => esc_html__( 'Sorry, but the %mailer% mailer isn’t available in the lite version. Please upgrade to PRO to unlock this mailer and much more.', 'easy-wp-smtp' ),
 					'upgrade_button'      => esc_html__( 'Upgrade to PRO', 'easy-wp-smtp' ),
-					'upgrade_url'         => add_query_arg( 'discount', 'SMTPLITEUPGRADE', easy_wp_smtp()->get_upgrade_link( '' ) ),
+					'upgrade_url'         => add_query_arg( 'discount', 'SMTPLITEUPGRADE', easy_wp_smtp()->get_upgrade_link( [ 'medium' => 'setup-wizard' ] ) ),
 					'upgrade_bonus_short' => sprintf(
 						wp_kses( /* Translators: %s - discount value 50%. */
 							__( '<b>%s OFF</b> for Easy WP SMTP users, applied at checkout.', 'easy-wp-smtp' ),
@@ -1055,6 +1063,10 @@ class SetupWizard {
 	public function send_feedback() {
 
 		check_ajax_referer( 'easywpsmtp-admin-nonce', 'nonce' );
+		
+		if ( ! current_user_can( easy_wp_smtp()->get_capability_manage_options() ) ) {
+			wp_send_json_error();
+		}
 
 		// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
 		$data = ! empty( $_POST['data'] ) ? json_decode( wp_unslash( $_POST['data'] ), true ) : [];
@@ -1200,36 +1212,42 @@ class SetupWizard {
 		}
 
 		$constants = [
-			'EasyWPSMTP_MAIL_FROM'                     => [ 'mail', 'from_email' ],
-			'EasyWPSMTP_MAIL_FROM_FORCE'               => [ 'mail', 'from_email_force' ],
-			'EasyWPSMTP_MAIL_FROM_NAME'                => [ 'mail', 'from_name' ],
-			'EasyWPSMTP_MAIL_FROM_NAME_FORCE'          => [ 'mail', 'from_name_force' ],
-			'EasyWPSMTP_MAILER'                        => [ 'mail', 'mailer' ],
-			'EasyWPSMTP_SMTPCOM_API_KEY'               => [ 'smtpcom', 'api_key' ],
-			'EasyWPSMTP_SMTPCOM_CHANNEL'               => [ 'smtpcom', 'channel' ],
-			'EasyWPSMTP_SENDINBLUE_API_KEY'            => [ 'sendinblue', 'api_key' ],
-			'EasyWPSMTP_SENDINBLUE_DOMAIN'             => [ 'sendinblue', 'domain' ],
-			'EasyWPSMTP_AMAZONSES_CLIENT_ID'           => [ 'amazonses', 'client_id' ],
-			'EasyWPSMTP_AMAZONSES_CLIENT_SECRET'       => [ 'amazonses', 'client_secret' ],
-			'EasyWPSMTP_AMAZONSES_REGION'              => [ 'amazonses', 'region' ],
-			'EasyWPSMTP_MAILGUN_API_KEY'               => [ 'mailgun', 'api_key' ],
-			'EasyWPSMTP_MAILGUN_DOMAIN'                => [ 'mailgun', 'domain' ],
-			'EasyWPSMTP_MAILGUN_REGION'                => [ 'mailgun', 'region' ],
-			'EasyWPSMTP_OUTLOOK_CLIENT_ID'             => [ 'outlook', 'client_id' ],
-			'EasyWPSMTP_OUTLOOK_CLIENT_SECRET'         => [ 'outlook', 'client_secret' ],
-			'EasyWPSMTP_SENDGRID_API_KEY'              => [ 'sendgrid', 'api_key' ],
-			'EasyWPSMTP_SENDGRID_DOMAIN'               => [ 'sendgrid', 'domain' ],
-			'EasyWPSMTP_POSTMARK_SERVER_API_TOKEN'     => [ 'postmark', 'server_api_token' ],
-			'EasyWPSMTP_POSTMARK_MESSAGE_STREAM'       => [ 'postmark', 'message_stream' ],
-			'EasyWPSMTP_SMTP_HOST'                     => [ 'smtp', 'host' ],
-			'EasyWPSMTP_SMTP_PORT'                     => [ 'smtp', 'port' ],
-			'EasyWPSMTP_SSL'                           => [ 'smtp', 'encryption' ],
-			'EasyWPSMTP_SMTP_AUTH'                     => [ 'smtp', 'auth' ],
-			'EasyWPSMTP_SMTP_AUTOTLS'                  => [ 'smtp', 'autotls' ],
-			'EasyWPSMTP_SMTP_USER'                     => [ 'smtp', 'user' ],
-			'EasyWPSMTP_SMTP_PASS'                     => [ 'smtp', 'pass' ],
-			'EasyWPSMTP_LOGS_ENABLED'                  => [ 'logs', 'enabled' ],
-			'EasyWPSMTP_SUMMARY_REPORT_EMAIL_DISABLED' => [ 'general', SummaryReportEmail::SETTINGS_SLUG ],
+			'EASY_WP_SMTP_MAIL_FROM'                     => [ 'mail', 'from_email' ],
+			'EASY_WP_SMTP_MAIL_FROM_FORCE'               => [ 'mail', 'from_email_force' ],
+			'EASY_WP_SMTP_MAIL_FROM_NAME'                => [ 'mail', 'from_name' ],
+			'EASY_WP_SMTP_MAIL_FROM_NAME_FORCE'          => [ 'mail', 'from_name_force' ],
+			'EASY_WP_SMTP_MAILER'                        => [ 'mail', 'mailer' ],
+			'EASY_WP_SMTP_SMTPCOM_API_KEY'               => [ 'smtpcom', 'api_key' ],
+			'EASY_WP_SMTP_SMTPCOM_CHANNEL'               => [ 'smtpcom', 'channel' ],
+			'EASY_WP_SMTP_SENDINBLUE_API_KEY'            => [ 'sendinblue', 'api_key' ],
+			'EASY_WP_SMTP_SENDINBLUE_DOMAIN'             => [ 'sendinblue', 'domain' ],
+			'EASY_WP_SMTP_AMAZONSES_CLIENT_ID'           => [ 'amazonses', 'client_id' ],
+			'EASY_WP_SMTP_AMAZONSES_CLIENT_SECRET'       => [ 'amazonses', 'client_secret' ],
+			'EASY_WP_SMTP_AMAZONSES_REGION'              => [ 'amazonses', 'region' ],
+			'EASY_WP_SMTP_MAILGUN_API_KEY'               => [ 'mailgun', 'api_key' ],
+			'EASY_WP_SMTP_MAILGUN_DOMAIN'                => [ 'mailgun', 'domain' ],
+			'EASY_WP_SMTP_MAILGUN_REGION'                => [ 'mailgun', 'region' ],
+			'EASY_WP_SMTP_OUTLOOK_CLIENT_ID'             => [ 'outlook', 'client_id' ],
+			'EASY_WP_SMTP_OUTLOOK_CLIENT_SECRET'         => [ 'outlook', 'client_secret' ],
+			'EASY_WP_SMTP_SENDGRID_API_KEY'              => [ 'sendgrid', 'api_key' ],
+			'EASY_WP_SMTP_SENDGRID_DOMAIN'               => [ 'sendgrid', 'domain' ],
+			'EASY_WP_SMTP_POSTMARK_SERVER_API_TOKEN'     => [ 'postmark', 'server_api_token' ],
+			'EASY_WP_SMTP_POSTMARK_MESSAGE_STREAM'       => [ 'postmark', 'message_stream' ],
+			'EASY_WP_SMTP_SPARKPOST_API_KEY'             => [ 'sparkpost', 'api_key' ],
+			'EASY_WP_SMTP_SPARKPOST_REGION'              => [ 'sparkpost', 'region' ],
+			'EASY_WP_SMTP_ZOHO_DOMAIN'                   => [ 'zoho', 'domain' ],
+			'EASY_WP_SMTP_ZOHO_CLIENT_ID'                => [ 'zoho', 'client_id' ],
+			'EASY_WP_SMTP_ZOHO_CLIENT_SECRET'            => [ 'zoho', 'client_secret' ],
+			'EASY_WP_SMTP_RESEND_API_KEY'                => [ 'resend', 'api_key' ],
+			'EASY_WP_SMTP_SMTP_HOST'                     => [ 'smtp', 'host' ],
+			'EASY_WP_SMTP_SMTP_PORT'                     => [ 'smtp', 'port' ],
+			'EASY_WP_SMTP_SSL'                           => [ 'smtp', 'encryption' ],
+			'EASY_WP_SMTP_SMTP_AUTH'                     => [ 'smtp', 'auth' ],
+			'EASY_WP_SMTP_SMTP_AUTOTLS'                  => [ 'smtp', 'autotls' ],
+			'EASY_WP_SMTP_SMTP_USER'                     => [ 'smtp', 'user' ],
+			'EASY_WP_SMTP_SMTP_PASS'                     => [ 'smtp', 'pass' ],
+			'EASY_WP_SMTP_LOGS_ENABLED'                  => [ 'logs', 'enabled' ],
+			'EASY_WP_SMTP_SUMMARY_REPORT_EMAIL_DISABLED' => [ 'general', SummaryReportEmail::SETTINGS_SLUG ],
 		];
 
 		$defined = [];

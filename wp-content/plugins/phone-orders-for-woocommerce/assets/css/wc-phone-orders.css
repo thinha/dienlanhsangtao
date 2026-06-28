@@ -17,6 +17,11 @@
     width: 100%;
     background: #fff;
 }
+#woocommerce-order-items .woocommerce_order_items_wrapper .wc-order-item-variable-attribute {
+    display: flex;
+    align-items: center;
+    gap: .25rem;
+}
 
 #woocommerce-order-items .woocommerce_order_items_wrapper table.woocommerce_order_items thead th {
     text-align: left;
@@ -145,7 +150,7 @@
     position: relative;
 }
 
-#woocommerce-order-items .woocommerce_order_items_wrapper table.woocommerce_order_items td.name .wc-order-item-sku, #woocommerce-order-items .woocommerce_order_items_wrapper table.woocommerce_order_items td.name .wc-order-item-variation {
+#woocommerce-order-items .woocommerce_order_items_wrapper table.woocommerce_order_items td.name .wc-order-item-sku, #woocommerce-order-items .woocommerce_order_items_wrapper table.woocommerce_order_items td.name .wc-order-item-variation, #woocommerce-order-items .woocommerce_order_items_wrapper table.woocommerce_order_items td.name .wc-order-item-weight {
     display: block;
     margin-top: .5em;
     font-size: 0.92em !important;
@@ -432,7 +437,11 @@
 
 #woocommerce-order-items .woocommerce_order_items_wrapper table.woocommerce_order_items .quantity input {
     text-align: center;
-    width: 50px;
+    width: 60px;
+}
+
+#woocommerce-order-items .woocommerce_order_items_wrapper table.woocommerce_order_items .quantity input.fractional-qty {
+    width: 80px;
 }
 
 #woocommerce-order-items .woocommerce_order_items_wrapper table.woocommerce_order_items span.subtotal {
@@ -1117,7 +1126,6 @@ div#search-customer-box {
 }
 
 td.total-value {
-    color: #999;
     width: 20%;
 }
 
@@ -1130,7 +1138,7 @@ td.total-value {
 }
 
 #phone-orders-app .option_hours {
-	width:3em;
+	width:4em;
 }
 #phone-orders-app .option_number {
 	width:5em;
@@ -1312,4 +1320,77 @@ td.total-value {
 
 #phone-orders-app .wpo-add-product-create-woocommerce-product label {
     margin-bottom: 0;
+}
+
+#phone-orders-app .wc-order-totals .woocommerce-Price-amount {
+	color: #999;
+}
+
+#phone-orders-app .wc-order-totals .total-value .woocommerce-Price-amount {
+    color: #212529;
+}
+
+.multiselect .multiselect__input {
+    border: none;
+}
+
+#phone-orders-app .form-check-inline,
+.modal .form-check-inline {
+    margin-right: 5px;
+}
+
+#phone-orders-app .wc-order__actions .btn + span > .btn,
+#phone-orders-app .wc-order__actions span + .btn {
+    margin-left: 5px;
+}
+
+.btn + .btn {
+    margin-left: 5px;
+}
+
+#phone-orders-app .multiselect__content::-webkit-scrollbar {
+    display: block;
+    background-color: darkgrey;
+}
+
+#phone-orders-app .multiselect__content::-webkit-scrollbar-thumb {
+    border-radius: 12px;
+    background-color: grey;
+}
+
+#woocommerce-order-items .find-results-full-screen-mode .multiselect__content-wrapper .multiselect__content {
+    overflow-y: scroll;
+    overflow-x: hidden;
+}
+
+#phone-orders-app .option-number-addresses {
+    width: 4em !important;
+}
+
+#phone-orders-app .fade {
+    opacity: 1;
+}
+
+#phone-orders-app .fade:not(.show) {
+    opacity: 0;
+}
+
+#phone-orders-app .btn.disabled,
+#phone-orders-app .btn:disabled,
+#phone-orders-app fieldset:disabled .btn {
+    pointer-events: all;
+    cursor: not-allowed;
+    box-shadow: none;
+}
+
+.modal.show.modal-static .modal-dialog {
+    transform: none;
+}
+
+#woocommerce-order-items .find-results-full-screen-mode__search__block .wpo-barcode-mode-alert {
+    margin: 0;
+}
+
+#phone-orders-app .pro-features > * + a {
+    margin-left: 10px;
 }

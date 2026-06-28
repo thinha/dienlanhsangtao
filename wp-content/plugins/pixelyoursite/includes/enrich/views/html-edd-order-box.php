@@ -1,8 +1,10 @@
 <?php
 include_once "function-helper.php";
 
+use function PixelYourSite\PYS;
 $payment      = new EDD_Payment( $payment_id );
 
+if(!PYS()->getOption('edd_enabled_display_data_to_orders') || !isset($payment)) return;
 $meta = $payment->get_meta();
 
 ?>
@@ -33,11 +35,18 @@ $meta = $payment->get_meta();
                 </tr>
                 <tr >
                     <th>Landing Page:</th>
-                    <td><a href="<?=$data['pys_landing']?>" target="_blank" ><?=$data['pys_landing']?></a></td>
+                    <?php
+                    $landingPage = !empty($data['pys_landing']) ? $data['pys_landing'] : "No Landing Page";
+                    if (filter_var($landingPage, FILTER_VALIDATE_URL)) {
+                        echo '<td><a href="' . esc_url($landingPage) . '" target="_blank">' . esc_html($landingPage) . '</a></td>';
+                    } else {
+                        echo '<td>' . esc_html($landingPage) . '</td>';
+                    }
+                    ?>
                 </tr>
                 <tr>
                     <th>Traffic source:</th>
-                    <td><?=$data['pys_source']?></td>
+                    <td><?= esc_html(!empty($data['pys_source']) ? $data['pys_source'] : "No Traffic source") ?></td>
                 </tr>
                 <?php
                 $utms = explode("|",$data['pys_utm']);
@@ -53,14 +62,19 @@ $meta = $payment->get_meta();
                     <td colspan="2" class="border"><span></span></td>
                 </tr>
                 <tr >
-                    <?php
-                    $lastLanding = isset($data['last_pys_landing']) ? $data['last_pys_landing'] : "";?>
                     <th>Landing Page:</th>
-                    <td><a href="<?=$lastLanding?>" target="_blank" ><?=$lastLanding?></a></td>
+                    <?php
+                    $lastLanding = !empty($data['last_pys_landing']) ? $data['last_pys_landing'] : "No Landing Page";
+                    if (filter_var($lastLanding, FILTER_VALIDATE_URL)) {
+                        echo '<td><a href="' . esc_url($lastLanding) . '" target="_blank">' . esc_html($lastLanding) . '</a></td>';
+                    } else {
+                        echo '<td>' . esc_html($lastLanding) . '</td>';
+                    }
+                    ?>
                 </tr>
                 <tr>
                     <th>Traffic source:</th>
-                    <td><?= isset($data['last_pys_source']) ? $data['last_pys_source'] : ""?></td>
+                    <td><?= esc_html(!empty($data['last_pys_source']) ? $data['last_pys_source'] : "No Traffic source") ?></td>
                 </tr>
                 <?php
                 if(!empty($data['last_pys_utm'])) {
@@ -81,19 +95,19 @@ $meta = $payment->get_meta();
                 </tr>
                 <tr >
                     <th>Hour:</th>
-                    <td><?=$userTime[0]?></td>
+                    <td><?= esc_html($userTime[0]); ?></td>
                 </tr>
                 <tr >
                     <th>Day:</th>
-                    <td><?=$userTime[1]?></td>
+                    <td><?= esc_html($userTime[1]); ?></td>
                 </tr>
                 <tr >
                     <th>Month:</th>
-                    <td><?=$userTime[2]?></td>
+                    <td><?= esc_html($userTime[2]); ?></td>
                 </tr>
 
                 <tr>
-                    <td colspan="2" class="border"<td><span></span></td>
+                    <td colspan="2" class="border"><span></span></td>
                 </tr>
 
             </table>
@@ -102,4 +116,3 @@ $meta = $payment->get_meta();
             <h2>No data</h2>
         <?php endif; ?>
     </div>
-

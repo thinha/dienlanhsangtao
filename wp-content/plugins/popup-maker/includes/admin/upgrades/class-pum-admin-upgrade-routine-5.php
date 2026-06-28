@@ -4,7 +4,7 @@
  *
  * @package     PUM
  * @subpackage  Admin/Upgrades
- * @copyright   Copyright (c) 2019, Code Atlantic LLC
+ * @copyright   Copyright (c) 2023, Code Atlantic LLC
  * @license     http://opensource.org/licenses/gpl-3.0.php GNU Public License
  * @since       1.4
  */
@@ -15,7 +15,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 if ( ! class_exists( 'PUM_Admin_Upgrade_Routine' ) ) {
-	require_once POPMAKE_DIR . "includes/admin/upgrades/class-pum-admin-upgrade-routine.php";
+	require_once POPMAKE_DIR . 'includes/admin/upgrades/class-pum-admin-upgrade-routine.php';
 }
 
 /**
@@ -35,12 +35,13 @@ final class PUM_Admin_Upgrade_Routine_5 extends PUM_Admin_Upgrade_Routine {
 	 */
 	public static function run() {
 		if ( ! current_user_can( PUM_Admin_Upgrades::instance()->required_cap ) ) {
-			wp_die( __( 'You do not have permission to do upgrades', 'popup-maker' ), __( 'Error', 'popup-maker' ), array( 'response' => 403 ) );
+			wp_die( esc_html__( 'You do not have permission to do upgrades', 'popup-maker' ), esc_html__( 'Error', 'popup-maker' ), [ 'response' => 403 ] );
 		}
 
 		ignore_user_abort( true );
 
 		if ( ! pum_is_func_disabled( 'set_time_limit' ) ) {
+			// phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
 			@set_time_limit( 0 );
 		}
 
@@ -58,30 +59,30 @@ final class PUM_Admin_Upgrade_Routine_5 extends PUM_Admin_Upgrade_Routine {
 			$upgrades->set_arg( 'total', $total );
 		}
 
-		$popups = pum_get_popups( array(
-			'number' => $upgrades->get_arg( 'number' ),
-			'page'   => $upgrades->get_arg( 'step' ),
-			'status' => array( 'any', 'trash', 'auto-draft' ),
-			'order'  => 'ASC',
-		) );
+		$popups = pum_get_popups(
+			[
+				'number' => $upgrades->get_arg( 'number' ),
+				'page'   => $upgrades->get_arg( 'step' ),
+				'status' => [ 'any', 'trash', 'auto-draft' ],
+				'order'  => 'ASC',
+			]
+		);
 
 		if ( $popups ) {
-
 			foreach ( $popups as $popup ) {
 
 				/**
 				 * Initialize the popup meta values for core analytics.
 				 */
-				PUM_Admin_Upgrade_Routine_5::initialize_analytics( $popup->ID );
+				self::initialize_analytics( $popup->ID );
 
-				$completed ++;
+				++$completed;
 			}
 
 			if ( $completed < $total ) {
 				$upgrades->set_arg( 'completed', $completed );
-				PUM_Admin_Upgrade_Routine_5::next_step();
+				self::next_step();
 			}
-
 		}
 
 		// Check for popup analytics extension and import those stats if available.
@@ -96,18 +97,7 @@ final class PUM_Admin_Upgrade_Routine_5 extends PUM_Admin_Upgrade_Routine {
 			update_site_option( 'pum_site_total_open_count', $site_total_open_count + $total_open_count );
 		}
 
-			/**
-		 * TODO Move this to v1.5 routines.
-		 */
-		/*
-		// Check for popup analytics extension and import those stats if available.
-		$total_conversion_count = get_site_option( 'popup_analytics_total_conversion_count', 0 );
-
-		// Set the sites total open count.
-		update_site_option( 'pum_total_conversion_count', $total_conversion_count );
-		 */
-
-		PUM_Admin_Upgrade_Routine_5::done();
+		self::done();
 	}
 
 	/**
@@ -132,31 +122,5 @@ final class PUM_Admin_Upgrade_Routine_5 extends PUM_Admin_Upgrade_Routine {
 		update_post_meta( $popup_id, 'popup_open_count', absint( $open_count ) );
 		update_post_meta( $popup_id, 'popup_open_count_total', absint( $open_count ) );
 		update_post_meta( $popup_id, 'popup_last_opened', absint( $last_open ) );
-
-		/**
-		 * TODO Move this to v1.5 routines.
-		 */
-		/*
-		// Conversion Count
-		$conversion_count = get_post_meta( $popup_id, 'popup_analytic_conversion_count', true );
-		if ( ! $conversion_count ) {
-			$conversion_count = 0;
-		}
-
-		// Last Conversion
-		$last_conversion = get_post_meta( $popup_id, 'popup_analytic_last_conversion', true );
-		if ( ! $last_conversion ) {
-			$last_conversion = 0;
-		}
-
-		// Calculate and set the conversion rate.
-		$conversion_rate = $conversion_count / $open_count * 100;
-
-		// Add the meta.
-		update_post_meta( $popup_id, 'popup_conversion_count', $conversion_count );
-		update_post_meta( $popup_id, 'popup_last_conversion', $last_conversion );
-		update_post_meta( $popup_id, 'popup_conversion_rate', $conversion_rate );
-		*/
 	}
-
 }

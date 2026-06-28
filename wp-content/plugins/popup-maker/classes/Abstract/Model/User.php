@@ -1,7 +1,10 @@
 <?php
-/*******************************************************************************
- * Copyright (c) 2019, Code Atlantic LLC
- ******************************************************************************/
+/**
+ * Abstract for user model
+ *
+ * @package   PopupMaker
+ * @copyright Copyright (c) 2024, Code Atlantic LLC
+ */
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -65,9 +68,9 @@ abstract class PUM_Abstract_Model_User {
 	public $user;
 
 	/**
-	 * @var array An array of keys that can be accessed via the $this->user (WP_User) object.
+	 * @var string[] An array of keys that can be accessed via the $this->user (WP_User) object.
 	 */
-	public $core_data_keys = array(
+	public $core_data_keys = [
 		'nickname',
 		'description',
 		'user_description',
@@ -95,7 +98,7 @@ abstract class PUM_Abstract_Model_User {
 		'roles',
 		'allcaps',
 		'filter',
-	);
+	];
 
 	/**
 	 * The required permission|user_role|capability|user_level of the user.
@@ -141,16 +144,18 @@ abstract class PUM_Abstract_Model_User {
 	 * @return bool
 	 */
 	public function __isset( $key ) {
-		if ( in_array( $key, $this->core_data_keys ) ) {
+		if ( in_array( $key, $this->core_data_keys, true ) ) {
 			return isset( $this->user->$key );
 		}
+
+		return false;
 	}
 
 	/**
 	 * @param $key
 	 */
 	public function __unset( $key ) {
-		if ( in_array( $key, $this->core_data_keys ) ) {
+		if ( in_array( $key, $this->core_data_keys, true ) ) {
 			unset( $this->user->$key );
 		}
 	}
@@ -163,24 +168,25 @@ abstract class PUM_Abstract_Model_User {
 	 * @return mixed|WP_Error
 	 */
 	public function __get( $key ) {
-		if ( in_array( $key, $this->core_data_keys ) ) {
-
+		if ( in_array( $key, $this->core_data_keys, true ) ) {
 			return $this->user->$key;
-
 		} elseif ( method_exists( $this, 'get_' . $key ) ) {
-
-			return call_user_func( array( $this, 'get_' . $key ) );
-
+			return call_user_func( [ $this, 'get_' . $key ] );
 		} else {
-
 			$meta = get_user_meta( $this->ID, $key, true );
 
 			if ( $meta ) {
 				return $meta;
 			}
 
-			return new WP_Error( 'user-invalid-property', sprintf( __( 'Can\'t get property %s' ), $key ) );
-
+			return new WP_Error(
+				'user-invalid-property',
+				sprintf(
+					/* translators: %s is the property name. */
+					__( 'Can\'t get property %s', 'default' ),
+					$key
+				)
+			);
 		}
 	}
 
@@ -192,7 +198,7 @@ abstract class PUM_Abstract_Model_User {
 	 */
 	public function __call( $name, $arguments ) {
 		if ( method_exists( $this->user, $name ) ) {
-			return call_user_func_array( array( $this->user, $name ), $arguments );
+			return call_user_func_array( [ $this->user, $name ], $arguments );
 		}
 	}
 
@@ -212,24 +218,24 @@ abstract class PUM_Abstract_Model_User {
 	 *
 	 * @param      $key
 	 * @param      $value
-	 * @param bool $global
+	 * @param bool $is_global
 	 *
 	 * @return bool|int
 	 */
-	public function update_option( $key, $value, $global = false ) {
-		return update_user_option( $this->ID, $key, $value, $global );
+	public function update_option( $key, $value, $is_global = false ) {
+		return update_user_option( $this->ID, $key, $value, $is_global );
 	}
 
 	/**
 	 * Used to delete per site or global user options.
 	 *
 	 * @param      $key
-	 * @param bool $global
+	 * @param bool $is_global
 	 *
 	 * @return bool
 	 */
-	public function delete_option( $key, $global = false ) {
-		return delete_user_option( $this->ID, $key, $global );
+	public function delete_option( $key, $is_global = false ) {
+		return delete_user_option( $this->ID, $key, $is_global );
 	}
 
 	/**
@@ -276,7 +282,7 @@ abstract class PUM_Abstract_Model_User {
 	 *
 	 * @return bool|int
 	 */
-	public function delete_meta( $key, $value = "" ) {
+	public function delete_meta( $key, $value = '' ) {
 		return delete_user_meta( $this->ID, $key, $value );
 	}
 

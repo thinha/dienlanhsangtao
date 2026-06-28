@@ -1,11 +1,13 @@
 <?php
-/*******************************************************************************
- * Copyright (c) 2019, Code Atlantic LLC
- ******************************************************************************/
+/**
+ * Extension License Handler
+ *
+ * @package   PopupMaker
+ * @copyright Copyright (c) 2024, Code Atlantic LLC
+ */
 
-if ( ! defined( 'ABSPATH' ) ) {
-	exit;
-}
+// Exit if accessed directly.
+defined( 'ABSPATH' ) || exit;
 
 /**
  * License handler for Popup Maker
@@ -18,20 +20,60 @@ if ( ! defined( 'ABSPATH' ) ) {
  */
 class PUM_Extension_License {
 
+	/**
+	 * Plugin file.
+	 *
+	 * @var string
+	 */
 	private $file;
 
+	/**
+	 * License key.
+	 *
+	 * @var string
+	 */
 	private $license;
 
+	/**
+	 * Plugin name.
+	 *
+	 * @var string
+	 */
 	private $item_name;
 
+	/**
+	 * Plugin EDD item ID.
+	 *
+	 * @var int
+	 */
 	private $item_id;
 
+	/**
+	 * Plugin shortname.
+	 *
+	 * @var string
+	 */
 	private $item_shortname;
 
+	/**
+	 * Plugin version.
+	 *
+	 * @var string
+	 */
 	private $version;
 
+	/**
+	 * Plugin author.
+	 *
+	 * @var string
+	 */
 	private $author;
 
+	/**
+	 * API URL.
+	 *
+	 * @var string
+	 */
 	private $api_url = 'https://wppopupmaker.com/edd-sl-api/';
 
 	/**
@@ -45,7 +87,7 @@ class PUM_Extension_License {
 	 * @param string $_api_url
 	 * @param int    $_item_id
 	 */
-	function __construct( $_file, $_item_name, $_version, $_author, $_optname = null, $_api_url = null, $_item_id = null ) {
+	public function __construct( $_file, $_item_name, $_version, $_author, $_optname = null, $_api_url = null, $_item_id = null ) {
 		$this->file      = $_file;
 		$this->item_name = $_item_name;
 
@@ -55,7 +97,7 @@ class PUM_Extension_License {
 
 		$this->item_shortname = 'popmake_' . preg_replace( '/[^a-zA-Z0-9_\s]/', '', str_replace( ' ', '_', strtolower( $this->item_name ) ) );
 		$this->version        = $_version;
-		$this->license        = trim( PUM_Utils_Options::get( $this->item_shortname . '_license_key', '' ) );
+		$this->license        = $this->get_effective_license_key();
 		$this->author         = $_author;
 		$this->api_url        = is_null( $_api_url ) ? $this->api_url : $_api_url;
 
@@ -79,6 +121,80 @@ class PUM_Extension_License {
 	}
 
 	/**
+	 * Get effective license key (Pro key if available, else extension-specific key).
+	 *
+	 * @return string
+	 */
+	private function get_effective_license_key() {
+		// Check if Pro license is active.
+		if ( $this->has_pro_license() ) {
+			return $this->get_pro_license_key();
+		}
+
+		// Fallback to extension-specific key.
+		return trim( PUM_Utils_Options::get( $this->item_shortname . '_license_key', '' ) );
+	}
+
+	/**
+	 * Check if Pro/Pro+ license key exists (active or not).
+	 *
+	 * This prevents users from managing extension licenses when a Pro key
+	 * is present, even if that Pro key is currently deactivated.
+	 *
+	 * @return bool
+	 */
+	private function has_pro_license() {
+		if ( ! function_exists( '\PopupMaker\plugin' ) ) {
+			return false;
+		}
+
+		try {
+			$license_service = \PopupMaker\plugin()->get( 'license' );
+			$license_key     = $license_service->get_license_key();
+			// Check if Pro key exists and is not empty.
+			return ! empty( $license_key );
+		} catch ( \Exception $e ) {
+			return false;
+		}
+	}
+
+	/**
+	 * Get Pro license key.
+	 *
+	 * @return string
+	 */
+	private function get_pro_license_key() {
+		if ( ! function_exists( '\PopupMaker\plugin' ) ) {
+			return '';
+		}
+
+		try {
+			$license_service = \PopupMaker\plugin()->get( 'license' );
+			return $license_service->get_license_key();
+		} catch ( \Exception $e ) {
+			return '';
+		}
+	}
+
+	/**
+	 * Get Pro license tier (pro or pro_plus).
+	 *
+	 * @return string
+	 */
+	private function get_pro_license_tier() {
+		if ( ! $this->has_pro_license() ) {
+			return '';
+		}
+
+		try {
+			$license_service = \PopupMaker\plugin()->get( 'license' );
+			return $license_service->get_license_tier();
+		} catch ( \Exception $e ) {
+			return '';
+		}
+	}
+
+	/**
 	 * Include the updater class
 	 *
 	 * @access  private
@@ -96,33 +212,33 @@ class PUM_Extension_License {
 	private function hooks() {
 
 		// Register settings
-		add_filter( 'pum_settings_fields', array( $this, 'settings' ), 1 );
+		add_filter( 'pum_settings_fields', [ $this, 'settings' ], 1 );
 
 		// Activate license key on settings save
-		add_action( 'admin_init', array( $this, 'activate_license' ) );
+		add_action( 'admin_init', [ $this, 'activate_license' ] );
 
 		// Deactivate license key
-		add_action( 'admin_init', array( $this, 'deactivate_license' ) );
+		add_action( 'admin_init', [ $this, 'deactivate_license' ] );
 
 		// Check that license is valid once per week
-		add_action( 'popmake_weekly_scheduled_events', array( $this, 'weekly_license_check' ) );
+		add_action( 'popmake_weekly_scheduled_events', [ $this, 'weekly_license_check' ] );
 
 		// For testing license notices, uncomment this line to force checks on every page load
-		//add_action( 'admin_init', array( $this, 'weekly_license_check' ) );
+		// add_action( 'admin_init', array( $this, 'weekly_license_check' ) );
 
 		// Updater
-		add_action( 'admin_init', array( $this, 'auto_updater' ), 0 );
+		add_action( 'admin_init', [ $this, 'auto_updater' ], 0 );
 
 		// Display notices to admins
 		// add_action( 'admin_notices', array( $this, 'notices' ) );
 
 		// Display notices to admins
-		add_filter( 'pum_alert_list', array( $this, 'alerts' ) );
+		add_filter( 'pum_alert_list', [ $this, 'alerts' ] );
 
-		add_action( 'in_plugin_update_message-' . plugin_basename( $this->file ), array( $this, 'plugin_row_license_missing' ), 10, 2 );
+		add_action( 'in_plugin_update_message-' . plugin_basename( $this->file ), [ $this, 'plugin_row_license_missing' ], 10, 2 );
 
 		// Register plugins for beta support
-		add_filter( 'pum_beta_enabled_extensions', array( $this, 'register_beta_support' ) );
+		add_filter( 'pum_beta_enabled_extensions', [ $this, 'register_beta_support' ] );
 	}
 
 	/**
@@ -132,12 +248,19 @@ class PUM_Extension_License {
 	 * @return  void
 	 */
 	public function auto_updater() {
-		$args = array(
+		// To support auto-updates, this needs to run during the wp_version_check cron job for privileged users.
+		$doing_cron = defined( 'DOING_CRON' ) && DOING_CRON;
+		if ( ! current_user_can( 'manage_options' ) && ! $doing_cron ) {
+			return;
+		}
+
+		$args = [
 			'version' => $this->version,
 			'license' => $this->license,
+			'item_id' => $this->item_id,
 			'author'  => $this->author,
 			'beta'    => PUM_Admin_Tools::extension_has_beta_support( $this->item_shortname ),
-		);
+		];
 
 		if ( ! empty( $this->item_id ) ) {
 			$args['item_id'] = $this->item_id;
@@ -146,7 +269,7 @@ class PUM_Extension_License {
 		}
 
 		// Setup the updater
-		$popmake_updater = new PUM_Extension_Updater( $this->api_url, $this->file, $args );
+		new PUM_Extension_Updater( $this->api_url, $this->file, $args );
 	}
 
 
@@ -159,27 +282,34 @@ class PUM_Extension_License {
 	 *
 	 * @return  array
 	 */
-	public function settings( $tabs = array() ) {
+	public function settings( $tabs = [] ) {
 		static $license_help_text = false;
 
 		if ( ! $license_help_text && ! isset( $tabs['licenses']['main']['license_help_text'] ) ) {
 			$license_help_text = true;
 
-			$tabs['licenses']['main']['license_help_text'] = array(
+			$tabs['licenses']['main']['license_help_text'] = [
 				'type'     => 'html',
-				'content'  => '<p><strong>' . sprintf( __( 'Enter your extension license keys here to receive updates for purchased extensions. If your license key has expired, please %srenew your license%s.', 'popup-maker' ), '<a href="https://docs.wppopupmaker.com/article/177-license-renewal?utm_medium=license-help-text&utm_campaign=Licensing&utm_source=plugin-settings-page-licenses-tab" target="_blank">', '</a>' ) . '</strong></p>',
+				'content'  => '<p><strong>' . sprintf(
+					/* translators: 1. opening link text, 2. closing link text */
+					esc_html__( 'Enter your extension license keys here to receive updates for purchased extensions. If your license key has expired, please %1$srenew your license%2$s.', 'popup-maker' ),
+					'<a href="https://wppopupmaker.com/docs/policies/license-renewal/?utm_medium=license-help-text&utm_campaign=Licensing&utm_source=plugin-settings-page-licenses-tab" target="_blank">',
+					'</a>'
+				) . '</strong></p>',
 				'priority' => 0,
-			);
+			];
 		}
 
-		$tabs['licenses']['main'][ $this->item_shortname . '_license_key' ] = array(
+		$tabs['licenses']['main'][ $this->item_shortname . '_license_key' ] = [
 			'type'    => 'license_key',
-			'label'   => sprintf( __( '%1$s', 'popup-maker' ), $this->item_name ),
-			'options' => array(
+			'label'   => esc_attr( $this->item_name ),
+			'options' => [
 				'is_valid_license_option' => $this->item_shortname . '_license_active',
-				'activation_callback'     => array( $this, 'activate_license' ),
-			),
-		);
+				'activation_callback'     => [ $this, 'activate_license' ],
+				'using_pro_license'       => $this->has_pro_license(),
+				'pro_license_tier'        => $this->get_pro_license_tier(),
+			],
+		];
 
 		return $tabs;
 	}
@@ -191,10 +321,19 @@ class PUM_Extension_License {
 	 * @return  void
 	 */
 	public function activate_license() {
+		// Skip activation if using Pro license.
+		if ( $this->has_pro_license() ) {
+			return;
+		}
+
+		if ( ! isset( $_POST['pum_settings_nonce'] ) || ! wp_verify_nonce( sanitize_key( wp_unslash( $_POST['pum_settings_nonce'] ) ), 'pum_settings_nonce' ) ) {
+			return;
+		}
 
 		if ( ! isset( $_POST['pum_settings'] ) ) {
 			return;
 		}
+
 		if ( ! isset( $_POST['pum_settings'][ $this->item_shortname . '_license_key' ] ) ) {
 			return;
 		}
@@ -214,27 +353,36 @@ class PUM_Extension_License {
 			return;
 		}
 
-		$license = sanitize_text_field( $_POST['pum_settings'][ $this->item_shortname . '_license_key' ] );
+		$license = sanitize_text_field( wp_unslash( $_POST['pum_settings'][ $this->item_shortname . '_license_key' ] ) );
 
 		if ( empty( $license ) && empty( $_POST['pum_license_activate'][ $this->item_shortname . '_license_key' ] ) ) {
 			return;
 		}
 
+		// If the key is starred (displayed for security), get the original extension key from database.
+		if ( strpos( $license, '*' ) !== false ) {
+			$license = $this->get_effective_license_key();
+		}
+
 		// Data to send to the API
-		$api_params = array(
-			'edd_action' => 'activate_license',
-			'license'    => $license,
-			'item_name'  => urlencode( $this->item_name ),
-			'item_id'    => $this->item_id,
-			'url'        => home_url(),
-		);
+		$api_params = [
+			'edd_action'  => 'activate_license',
+			'license'     => $license,
+			'item_id'     => $this->item_id,
+			'item_name'   => rawurlencode( $this->item_name ),
+			'url'         => home_url(),
+			'environment' => function_exists( 'wp_get_environment_type' ) ? wp_get_environment_type() : 'production',
+		];
 
 		// Call the API
-		$response = wp_remote_post( $this->api_url, array(
-			'timeout'   => 15,
-			'sslverify' => false,
-			'body'      => $api_params,
-		) );
+		$response = wp_remote_post(
+			$this->api_url,
+			[
+				'timeout'   => 15,
+				'sslverify' => false,
+				'body'      => $api_params,
+			]
+		);
 
 		// Make sure there are no errors
 		if ( is_wp_error( $response ) ) {
@@ -250,7 +398,6 @@ class PUM_Extension_License {
 		update_option( $this->item_shortname . '_license_active', $license_data );
 	}
 
-
 	/**
 	 * Deactivate the license key
 	 *
@@ -258,12 +405,16 @@ class PUM_Extension_License {
 	 * @return  void
 	 */
 	public function deactivate_license() {
-
-		if ( ! isset( $_POST['pum_settings'] ) ) {
+		// Skip deactivation if using Pro license.
+		if ( $this->has_pro_license() ) {
 			return;
 		}
 
-		if ( ! isset( $_POST['pum_settings'][ $this->item_shortname . '_license_key' ] ) ) {
+		if ( ! isset( $_POST['pum_settings_nonce'] ) || ! wp_verify_nonce( sanitize_key( wp_unslash( $_POST['pum_settings_nonce'] ) ), 'pum_settings_nonce' ) ) {
+			return;
+		}
+
+		if ( ! isset( $_POST['pum_settings'] ) ) {
 			return;
 		}
 
@@ -275,19 +426,24 @@ class PUM_Extension_License {
 		if ( isset( $_POST['pum_license_deactivate'][ $this->item_shortname . '_license_key' ] ) ) {
 
 			// Data to send to the API
-			$api_params = array(
-				'edd_action' => 'deactivate_license',
-				'license'    => $this->license,
-				'item_name'  => urlencode( $this->item_name ),
-				'url'        => home_url(),
-			);
+			$api_params = [
+				'edd_action'  => 'deactivate_license',
+				'license'     => $this->license,
+				'item_id'     => $this->item_id,
+				'item_name'   => rawurlencode( $this->item_name ),
+				'url'         => home_url(),
+				'environment' => function_exists( 'wp_get_environment_type' ) ? wp_get_environment_type() : 'production',
+			];
 
 			// Call the API
-			$response = wp_remote_post( $this->api_url, array(
-				'timeout'   => 15,
-				'sslverify' => false,
-				'body'      => $api_params,
-			) );
+			$response = wp_remote_post(
+				$this->api_url,
+				[
+					'timeout'   => 15,
+					'sslverify' => false,
+					'body'      => $api_params,
+				]
+			);
 
 			// Make sure there are no errors
 			if ( is_wp_error( $response ) ) {
@@ -298,7 +454,6 @@ class PUM_Extension_License {
 			$license_data = json_decode( wp_remote_retrieve_body( $response ) );
 
 			delete_option( $this->item_shortname . '_license_active' );
-
 		}
 	}
 
@@ -311,8 +466,14 @@ class PUM_Extension_License {
 	 * @return  void
 	 */
 	public function weekly_license_check() {
+		// Skip weekly check if using Pro license.
+		if ( $this->has_pro_license() ) {
+			return;
+		}
 
-		if ( ! empty( $_POST['popmake_settings'] ) ) {
+		// Simply checking existence.
+		// phpcs:ignore WordPress.Security.NonceVerification.Missing
+		if ( isset( $_POST['popmake_settings'] ) ) {
 			return; // Don't fire when saving settings
 		}
 
@@ -321,19 +482,24 @@ class PUM_Extension_License {
 		}
 
 		// data to send in our API request
-		$api_params = array(
-			'edd_action' => 'check_license',
-			'license'    => $this->license,
-			'item_name'  => urlencode( $this->item_name ),
-			'url'        => home_url(),
-		);
+		$api_params = [
+			'edd_action'  => 'check_license',
+			'license'     => $this->license,
+			'item_id'     => $this->item_id,
+			'item_name'   => rawurlencode( $this->item_name ),
+			'url'         => home_url(),
+			'environment' => function_exists( 'wp_get_environment_type' ) ? wp_get_environment_type() : 'production',
+		];
 
 		// Call the API
-		$response = wp_remote_post( $this->api_url, array(
-			'timeout'   => 15,
-			'sslverify' => false,
-			'body'      => $api_params,
-		) );
+		$response = wp_remote_get(
+			$this->api_url,
+			[
+				'timeout'   => 15,
+				'sslverify' => false,
+				'body'      => $api_params,
+			]
+		);
 
 		// make sure the response came back okay
 		if ( is_wp_error( $response ) ) {
@@ -343,7 +509,6 @@ class PUM_Extension_License {
 		$license_data = json_decode( wp_remote_retrieve_body( $response ) );
 
 		update_option( $this->item_shortname . '_license_active', $license_data );
-
 	}
 
 	/**
@@ -352,12 +517,12 @@ class PUM_Extension_License {
 	 * @param array $alerts The existing alerts from the pum_alert_list filter
 	 * @return array Our modified array of alerts
 	 */
-	public function alerts( $alerts = array() ) {
+	public function alerts( $alerts = [] ) {
 
 		static $showed_invalid_message;
 
 		// If user can't manage it, or we already showed this alert abort.
-		if (  ! current_user_can( 'manage_options' ) || $showed_invalid_message ) {
+		if ( ! current_user_can( 'manage_options' ) || $showed_invalid_message ) {
 			return $alerts;
 		}
 
@@ -380,21 +545,31 @@ class PUM_Extension_License {
 		$showed_invalid_message = true;
 
 		if ( empty( $this->license ) ) {
-			$alerts[] = array(
+			$alerts[] = [
 				'code'        => 'license_not_valid',
-				'message'     => sprintf( __( 'One or more of your extensions are missing license keys. You will not be able to receive updates until the extension has a valid license key entered. Please go to the %sLicenses page%s to add your license keys.', 'popup-maker' ), '<a href="' . admin_url( 'edit.php?post_type=popup&page=pum-settings&tab=licenses' ) . '">', '</a>' ),
+				'message'     => sprintf(
+					/* translators: 1. opening link text, 2. closing link text */
+					__( 'One or more of your extensions are missing license keys. You will not be able to receive updates until the extension has a valid license key entered. Please go to the %1$sLicenses page%2$s to add your license keys.', 'popup-maker' ),
+					'<a href="' . admin_url( 'edit.php?post_type=popup&page=pum-settings&tab=licenses' ) . '">',
+					'</a>'
+				),
 				'type'        => 'error',
 				'dismissible' => '4 weeks',
 				'priority'    => 0,
-			);
+			];
 		} else {
-			$alerts[] = array(
+			$alerts[] = [
 				'code'        => 'license_not_valid',
-				'message'     => sprintf( __( 'You have invalid or expired license keys for Popup Maker. Please go to the %sLicenses page%s to correct this issue.', 'popup-maker' ), '<a href="' . admin_url( 'edit.php?post_type=popup&page=pum-settings&tab=licenses' ) . '">', '</a>' ),
+				'message'     => sprintf(
+					/* translators: 1. opening link text, 2. closing link text */
+					__( 'You have invalid or expired license keys for Popup Maker. Please go to the %1$sLicenses page%2$s to correct this issue.', 'popup-maker' ),
+					'<a href="' . admin_url( 'edit.php?post_type=popup&page=pum-settings&tab=licenses' ) . '">',
+					'</a>'
+				),
 				'type'        => 'error',
 				'dismissible' => '4 weeks',
 				'priority'    => 0,
-			);
+			];
 		}
 
 		return $alerts;
@@ -418,34 +593,31 @@ class PUM_Extension_License {
 			return;
 		}
 
-		$messages = array();
+		$messages = [];
 
 		$license = get_option( $this->item_shortname . '_license_active' );
 
 		if ( is_object( $license ) && 'valid' !== $license->license ) {
-
+			// phpcs:ignore WordPress.Security.NonceVerification.Recommended
 			if ( empty( $_GET['tab'] ) || 'licenses' !== $_GET['tab'] ) {
-
-				$messages[] = sprintf( __( 'You have invalid or expired license keys for Popup Maker. Please go to the %sLicenses page%s to correct this issue.', 'popup-maker' ), '<a href="' . admin_url( 'edit.php?post_type=popup&page=pum-settings&tab=licenses' ) . '">', '</a>' );
+				$messages[] = sprintf(
+					/* translators: 1. opening link text, 2. closing link text */
+					esc_html__( 'You have invalid or expired license keys for Popup Maker. Please go to the %1$sLicenses page%2$s to correct this issue.', 'popup-maker' ),
+					'<a href="' . admin_url( 'edit.php?post_type=popup&page=pum-settings&tab=licenses' ) . '">',
+					'</a>'
+				);
 
 				$showed_invalid_message = true;
-
 			}
-
 		}
 
 		if ( ! empty( $messages ) ) {
-
 			foreach ( $messages as $message ) {
-
 				echo '<div class="error">';
-				echo '<p>' . $message . '</p>';
+				echo '<p>' . wp_kses( $message, wp_kses_allowed_html( 'data' ) ) . '</p>';
 				echo '</div>';
-
 			}
-
 		}
-
 	}
 
 	/**
@@ -458,11 +630,9 @@ class PUM_Extension_License {
 		$license = get_option( $this->item_shortname . '_license_active' );
 
 		if ( ( ! is_object( $license ) || 'valid' !== $license->license ) && empty( $showed_imissing_key_message[ $this->item_shortname ] ) ) {
-
-			echo '&nbsp;<strong><a href="' . esc_url( admin_url( 'edit.php?post_type=popup&page=pum-settings&tab=licenses' ) ) . '">' . __( 'Enter valid license key for automatic updates.', 'popup-maker' ) . '</a></strong>';
+			echo '&nbsp;<strong><a href="' . esc_url( admin_url( 'edit.php?post_type=popup&page=pum-settings&tab=licenses' ) ) . '">' . esc_html__( 'Enter valid license key for automatic updates.', 'popup-maker' ) . '</a></strong>';
 			$showed_imissing_key_message[ $this->item_shortname ] = true;
 		}
-
 	}
 
 	/**
@@ -479,5 +649,4 @@ class PUM_Extension_License {
 
 		return $products;
 	}
-
 }

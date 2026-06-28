@@ -3,6 +3,8 @@
 namespace PixelYourSite\GA\Helpers;
 
 use PixelYourSite;
+use function PixelYourSite\GATags;
+use function PixelYourSite\isWPMLActive;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit; // Exit if accessed directly.
@@ -24,12 +26,12 @@ function renderCrossDomainDomain( $index = 0 ) {
     $attr_value = isset( $values[ $index ] ) ? $values[ $index ] : null;
     
     ?>
-    
-    <input type="text" name="<?php esc_attr_e( $attr_name ); ?>"
-           id="<?php esc_attr_e( $attr_id ); ?>"
-           value="<?php esc_attr_e( $attr_value ); ?>"
+
+    <input type="text" class="input-short" name="<?php echo esc_attr( $attr_name ); ?>"
+           id="<?php echo esc_attr( $attr_id ); ?>"
+           value="<?php echo esc_attr( $attr_value ); ?>"
            placeholder="Enter domain"
-           class="form-control">
+    >
     
     <?php
     
@@ -37,14 +39,41 @@ function renderCrossDomainDomain( $index = 0 ) {
 
 function getWooProductContentId( $product_id ) {
 
-    if ( PixelYourSite\GA()->getOption( 'woo_content_id' ) == 'product_sku' ) {
-        $content_id = get_post_meta( $product_id, '_sku', true );
+	if(isWPMLActive() && PixelYourSite\GATags()->getOption( 'woo_wpml_unified_id' )) {
+		$wpml_product_id = apply_filters('wpml_original_element_id', NULL, $product_id);
+		if ($wpml_product_id) {
+			$product_id = $wpml_product_id;
+		}
+	}
+
+    if ( PixelYourSite\GATags()->getOption( 'woo_content_id' ) == 'product_sku' ) {
+        $product = wc_get_product( $product_id );
+        if ($product && $product->is_type( 'variation' ) ) {
+            $content_id = $product->get_sku();
+            if ( empty( $content_id ) ) {
+                $parent_id = $product->get_parent_id();
+                $parent_product = wc_get_product( $parent_id );
+                if($parent_product){
+                    $content_id = $parent_product->get_sku();
+                }
+                if ( empty( $content_id ) ) {
+                    $content_id = $product_id;
+                }
+            }
+        } elseif($product) {
+            $content_id = $product->get_sku();
+            if ( empty( $content_id ) ) {
+                $content_id = $product_id;
+            }
+        } else {
+            $content_id = $product_id;
+        }
     } else {
         $content_id = $product_id;
     }
 
-    $prefix = PixelYourSite\GA()->getOption( 'woo_content_id_prefix' );
-    $suffix = PixelYourSite\GA()->getOption( 'woo_content_id_suffix' );
+    $prefix = PixelYourSite\GATags()->getOption( 'woo_content_id_prefix' );
+    $suffix = PixelYourSite\GATags()->getOption( 'woo_content_id_suffix' );
 
     $value = $prefix . $content_id . $suffix;
 
@@ -53,7 +82,7 @@ function getWooProductContentId( $product_id ) {
 
 function getWooCartItemId( $item ) {
 
-    if ( ! PixelYourSite\GA()->getOption( 'woo_variable_as_simple' ) && isset( $item['variation_id'] ) && $item['variation_id'] !== 0 ) {
+    if ( ! PixelYourSite\GATags()->getOption( 'woo_variable_as_simple' ) && isset( $item['variation_id'] ) && $item['variation_id'] !== 0 ) {
         $product_id = $item['variation_id'];
     } else {
         $product_id = $item['product_id'];
@@ -69,14 +98,14 @@ function getWooCartItemId( $item ) {
 function getEddDownloadContentId( $download_id )
 {
 
-    if (PixelYourSite\GA()->getOption('edd_content_id') == 'download_sku') {
+    if (PixelYourSite\GATags()->getOption('edd_content_id') == 'download_sku') {
         $content_id = get_post_meta($download_id, 'edd_sku', true);
     } else {
         $content_id = $download_id;
     }
 
-    $prefix = PixelYourSite\GA()->getOption('edd_content_id_prefix');
-    $suffix = PixelYourSite\GA()->getOption('edd_content_id_suffix');
+    $prefix = PixelYourSite\GATags()->getOption('edd_content_id_prefix');
+    $suffix = PixelYourSite\GATags()->getOption('edd_content_id_suffix');
 
     return $prefix . $content_id . $suffix;
 }

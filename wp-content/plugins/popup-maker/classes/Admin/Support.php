@@ -1,7 +1,10 @@
 <?php
-/*******************************************************************************
- * Copyright (c) 2019, Code Atlantic LLC
- ******************************************************************************/
+/**
+ * Class for Admin Support
+ *
+ * @package   PopupMaker
+ * @copyright Copyright (c) 2024, Code Atlantic LLC
+ */
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -17,7 +20,8 @@ class PUM_Admin_Support {
 	 *
 	 * Renders the support page contents.
 	 */
-	public static function page() { ?>
+	public static function page() {
+		?>
 		<style>
 			.pum-secure-notice {
 				position: fixed;
@@ -45,25 +49,24 @@ class PUM_Admin_Support {
 		</style>
 		<div class="pum-secure-notice">
 			<i class="dashicons dashicons-lock"></i>
-			<span><?php _e( '<b>Secure HTTPS contact page</b>, running via iframe from external domain', 'popup-maker' ); ?> </span>
+			<span><?php echo wp_kses( __( '<b>Secure HTTPS contact page</b>, running via iframe from external domain', 'popup-maker' ), [ 'b' => [] ] ); ?> </span>
 			<i class="dashicons dashicons-info" title="https://api.wppopupmaker.com/dashboard-support/"></i>
 		</div>
 		<div id="pum-support-frame" class="wrap">
 			<script type="text/javascript">
-                (function ($) {
-                    var frame = $('<iframe scrolling="no">')
-                        .css({height: '535px'})
-                        .attr('src', '<?php echo 'https://api.wppopupmaker.com/dashboard-support/?' . build_query( pum_support_assist_args() ); ?>')
-                        .appendTo('#pum-support-frame');
+				(function ($) {
+					var frame = $('<iframe scrolling="no">')
+						.css({height: '535px'})
+						.attr('src', 'https://api.wppopupmaker.com/dashboard-support/')
+						.appendTo('#pum-support-frame');
 
-                    frame.iFrameResize({
-                        checkOrigin: false
-                    });
-                })(jQuery);
+					frame.iFrameResize({
+						checkOrigin: false
+					});
+				})(jQuery);
 			</script>
 		</div>
 
 		<?php
 	}
-
 }

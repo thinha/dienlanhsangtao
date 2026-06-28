@@ -13,7 +13,7 @@ if ( ! class_exists( 'WP_List_Table' ) ) {
 }
 
 /**
- * Webooks table list class.
+ * Webhooks table list class.
  */
 class WC_Admin_Webhooks_Table_List extends WP_List_Table {
 
@@ -70,10 +70,7 @@ class WC_Admin_Webhooks_Table_List extends WP_List_Table {
 	 */
 	public function column_title( $webhook ) {
 		$edit_link = admin_url( 'admin.php?page=wc-settings&amp;tab=advanced&amp;section=webhooks&amp;edit-webhook=' . $webhook->get_id() );
-		$output    = '';
-
-		// Title.
-		$output .= '<strong><a href="' . esc_url( $edit_link ) . '" class="row-title">' . esc_html( $webhook->get_name() ) . '</a></strong>';
+		$output    = '<strong><a href="' . esc_url( $edit_link ) . '" class="row-title">' . esc_html( $webhook->get_name() ) . '</a></strong>';
 
 		// Get actions.
 		$actions = array(
@@ -174,7 +171,8 @@ class WC_Admin_Webhooks_Table_List extends WP_List_Table {
 		$num_webhooks   = $data_store->get_count_webhooks_by_status();
 		$total_webhooks = array_sum( (array) $num_webhooks );
 		$statuses       = array_keys( wc_get_webhook_statuses() );
-		$class          = empty( $_REQUEST['status'] ) ? ' class="current"' : ''; // WPCS: input var okay. CSRF ok.
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended
+		$class = empty( $_REQUEST['status'] ) && empty( $_REQUEST['legacy'] ) ? ' class="current"' : '';
 
 		/* translators: %s: count */
 		$status_links['all'] = "<a href='admin.php?page=wc-settings&amp;tab=advanced&amp;section=webhooks'$class>" . sprintf( _nx( 'All <span class="count">(%s)</span>', 'All <span class="count">(%s)</span>', $total_webhooks, 'posts', 'woocommerce' ), number_format_i18n( $total_webhooks ) ) . '</a>';
@@ -186,7 +184,8 @@ class WC_Admin_Webhooks_Table_List extends WP_List_Table {
 				continue;
 			}
 
-			if ( isset( $_REQUEST['status'] ) && sanitize_key( wp_unslash( $_REQUEST['status'] ) ) === $status_name ) { // WPCS: input var okay, CSRF ok.
+			// phpcs:ignore WordPress.Security.NonceVerification.Recommended
+			if ( isset( $_REQUEST['status'] ) && sanitize_key( wp_unslash( $_REQUEST['status'] ) ) === $status_name ) {
 				$class = ' class="current"';
 			}
 
@@ -216,12 +215,16 @@ class WC_Admin_Webhooks_Table_List extends WP_List_Table {
 		$action   = $this->current_action();
 		$webhooks = isset( $_REQUEST['webhook'] ) ? array_map( 'absint', (array) $_REQUEST['webhook'] ) : array(); // WPCS: input var okay, CSRF ok.
 
-		if ( ! current_user_can( 'manage_woocommerce' ) ) {
-			wp_die( esc_html__( 'You do not have permission to edit Webhooks', 'woocommerce' ) );
-		}
+		if ( false !== $action ) {
+			check_admin_referer( 'woocommerce-settings' );
 
-		if ( 'delete' === $action ) {
-			WC_Admin_Webhooks::bulk_delete( $webhooks );
+			if ( ! current_user_can( 'manage_woocommerce' ) ) {
+				wp_die( esc_html__( 'You do not have permission to edit Webhooks', 'woocommerce' ) );
+			}
+
+			if ( 'delete' === $action ) {
+				WC_Admin_Webhooks::bulk_delete( $webhooks );
+			}
 		}
 	}
 
@@ -299,6 +302,11 @@ class WC_Admin_Webhooks_Table_List extends WP_List_Table {
 
 		$args['paginate'] = true;
 
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended
+		if ( 'true' === sanitize_key( wp_unslash( $_REQUEST['legacy'] ?? null ) ) ) {
+			$args['api_version'] = -1;
+		}
+
 		// Get the webhooks.
 		$data_store  = WC_Data_Store::load( 'webhook' );
 		$webhooks    = $data_store->search_webhooks( $args );
@@ -312,5 +320,18 @@ class WC_Admin_Webhooks_Table_List extends WP_List_Table {
 				'total_pages' => $webhooks->max_num_pages,
 			)
 		);
+	}
+
+	/**
+	 * Get how many of the existing webhooks are configured to use the legacy payload format.
+	 *
+	 * @since      9.0.0
+	 * @deprecated 10.8.0 The Legacy REST API has been removed from WooCommerce core. This always returns 0.
+	 *
+	 * @return int Always 0.
+	 */
+	public function get_legacy_api_webhooks_count() {
+		wc_deprecated_function( __METHOD__, '10.8.0' );
+		return 0;
 	}
 }

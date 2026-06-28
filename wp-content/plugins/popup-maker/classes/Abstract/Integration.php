@@ -1,8 +1,14 @@
 <?php
-/*******************************************************************************
- * Copyright (c) 2020, WP Popup Maker
- ******************************************************************************/
+/**
+ * Abstract class for Integrations.
+ *
+ * @package   PopupMaker
+ * @copyright Copyright (c) 2024, Code Atlantic LLC
+ */
 
+/**
+ * Abstract class for Integrations.
+ */
 abstract class PUM_Abstract_Integration implements PUM_Interface_Integration {
 
 	/**
@@ -24,5 +30,4 @@ abstract class PUM_Abstract_Integration implements PUM_Interface_Integration {
 	 * @return bool
 	 */
 	abstract public function enabled();
-
 }

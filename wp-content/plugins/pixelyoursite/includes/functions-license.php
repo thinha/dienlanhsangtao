@@ -9,49 +9,82 @@ if ( ! defined( 'ABSPATH' ) ) {
 /**
  * @param Plugin|Settings $plugin
  */
-function renderLicenseControls( $plugin ) {
+function renderLicenseControls( $plugin, $license_status ) {
 
 	$slug = $plugin->getSlug();
 	$input_name = "pys[{$slug}][license_action]";
 
-	$license_status = $plugin->getOption( 'license_status' );
-
 	?>
+    <div class="license-info mb-24">
+        <h4 class="font-medium"><?php esc_html_e( 'Your license key', 'pys' ); ?>:</h4>
+		<?php if ( $license_status == 'Activated' || $license_status == 'Expired' || $license_status == 'valid' ) : ?>
+            <p class="text-green fw-500"><?php esc_html_e( 'Activated', 'pys' ); ?></p>
+		<?php else : ?>
+            <p class="text-red fw-500"><?php esc_html_e( 'Deactivated', 'pys' ); ?></p>
+		<?php endif; ?>
 
-    <div class="row">
-        <?php if( $license_status == 'valid' || $license_status == 'expired') : ?>
-            <div class="col-3">
-                <?php $plugin->render_text_input( 'license_key', 'Enter your license key', true, true, false); ?>
-                <button class="btn btn-block btn-sm btn-primary" name="<?php esc_attr_e( $input_name ); ?>"
-                        value="reactivate">Reactivate License</button>
-            </div>
-        <?php else : ?>
-            <div class="col-9">
-                <?php $plugin->render_text_input( 'license_key', 'Enter your license key', false, false, false ); ?>
-            </div>
+        <h4 class="font-medium"><?php esc_html_e( 'Plugin version', 'pys' ); ?>:</h4>
 
-        <?php endif; ?>
-
-        <div class="col-3">
-            <?php if( $license_status == 'valid' ||  $license_status == 'expired') : ?>
-                <button class="btn btn-block btn-sm btn-danger" name="<?php esc_attr_e( $input_name ); ?>"
-                        value="deactivate">Deactivate License</button>
-            <?php else : ?>
-                <button class="btn btn-block btn-sm btn-primary" name="<?php esc_attr_e( $input_name ); ?>"
-                        value="activate">Activate License</button>
-            <?php endif; ?>
+        <div>
+            <span class="fw-500"><?php echo esc_html( $plugin->getPluginVersion() ); ?></span>
         </div>
 
+        <h4 class="font-medium"><?php esc_html_e( 'License name', 'pys' ); ?>:</h4>
 
+        <div>
+            <span class="fw-500"><?php echo esc_html( PYS_FREE_LICENSE_NAME ); ?></span>
+        </div>
     </div>
 
+    <div>
+        <h4 class="font-semibold mb-4">
+			<?php esc_html_e( 'Your license key', 'pys' ); ?>:
+        </h4>
+        <div>
+            <div class="d-flex align-items-center">
+				<?php $plugin->render_password_input( 'license_key', 'Enter your license key', false, false, false ); ?>
+				<?php if ( $license_status == 'valid' || $license_status == 'expired' ) : ?>
+                    <button class="btn btn-block btn-sm btn-success" name="<?php echo esc_attr( $input_name ); ?>"
+                            value="reactivate">Reactivate License
+                    </button>
+				<?php else: ?>
+                    <button class="btn btn-block btn-sm btn-primary" name="<?php echo esc_attr( $input_name ); ?>"
+                            value="activate">Activate License
+                    </button>
+				<?php endif; ?>
+            </div>
+			<?php if ( $license_status != 'valid' && $license_status != 'expired' ) : ?>
+                <p class="license-description mt-4 lh-162">
+					<?php esc_html_e(
+						'You have your license key in the order confirmation email, and you can get it from ',
+						'pys'
+					);
+					?>
+                    <a href="<?php echo esc_url( 'https://www.pixelyoursite.com/my-account' ); ?>"
+                       rel="nofollow"
+                       class="link link-small"
+                       target="_blank">
+						<?php esc_html_e( 'your account', 'pys' );
+						?></a>
+					<?php esc_html_e(
+						' on our website. We also sent you an email containing your login data.',
+						'pys'
+					);
+					?>
+                </p>
+			<?php endif; ?>
+        </div>
+    </div>
+
+    <div class="mt-24">
+		<?php render_info_message( sprintf( __( 'If your don\'t have key, you can take it from %s', 'pys' ), '<a href="https://www.pixelyoursite.com/my-account" rel="nofollow" target="_blank">' . __( 'here', 'pys' ) . '</a>' ) ); ?>
+    </div>
 	<?php
 
-	$license_key = $plugin->getOption( 'license_key' );
-	$license_expires = $plugin->getOption( 'license_expires', null );
-
-	$license_expires_soon = false;
-	$license_expired = false;
+    $license_key = $plugin->getOption( 'license_key' );
+    $license_expires = $plugin->getOption( 'license_expires', null );
+    $license_expires_soon = false;
+    $license_expired = false;
 
 	if( $license_expires ) {
 
@@ -67,55 +100,48 @@ function renderLicenseControls( $plugin ) {
 
 	if ( $notice = get_transient( "pys_{$slug}_license_notice" ) ) :
 		?>
-
-		<div class="row mt-3">
-			<div class="col">
-				<div class="alert alert-<?php esc_attr_e( $notice['class'] ); ?> mb-0" role="alert">
-					<?php echo $notice['msg']; ?>
-				</div>
-			</div>
-		</div>
-
+            <div class="alert alert-<?php echo esc_attr( $notice['class'] ); ?>" role="alert">
+                <?php echo $notice['msg']; ?>
+            </div>
 		<?php
 
 		delete_transient(  "pys_{$slug}_license_notice" );
 
 	endif;
 
+	if ( $notice = get_transient( "pys_{$slug}_license_notice_403" ) ) :
+		?>
+            <div class="alert alert-<?php echo esc_attr( $notice['class'] ); ?>" role="alert">
+                <?php echo $notice['msg']; ?>
+            </div>
+		<?php
+
+		delete_transient(  "pys_{$slug}_license_notice_403" );
+
+	endif;
+
 	if ( $license_expires_soon ) :
 		?>
-
-		<div class="row mt-3">
-			<div class="col">
-				<div class="alert alert-warning mb-0">
-					<p>Your license key <strong>expires
-							on <?php echo date( get_option( 'date_format' ), $license_expires ); ?></strong>. Make sure
-						you keep everything updated and in order.</p>
-                    <p>If you renewed your license but you still see this message, click on the "Reactivate License" button.</p>
-					<p class="mb-0"><a href="https://www.pixelyoursite.com/checkout/?edd_license_key=<?php esc_attr_e(
-						$license_key ); ?>&utm_campaign=admin&utm_source=licenses&utm_medium=renew" target="_blank"><strong>Click here to renew your license now for a 40% discount</strong></a></p>
-				</div>
-			</div>
-		</div>
-
+            <div class="alert alert-warning">
+                <p>Your license key <strong>expires
+                        on <?php echo date( get_option( 'date_format' ), $license_expires ); ?></strong>. Make sure
+                    you keep everything updated and in order.</p>
+                <p>If you renewed your license but you still see this message, click on the "Reactivate License" button.</p>
+                <p><a href="https://www.pixelyoursite.com/checkout/?edd_license_key=<?php echo esc_attr(
+                    $license_key ); ?>&utm_campaign=admin&utm_source=licenses&utm_medium=renew" target="_blank"><strong>Click here to renew your license</strong></a></p>
+            </div>
 		<?php
 	endif;
 
 	if ( $license_expired ) :
 		?>
-
-		<div class="row mt-3">
-			<div class="col">
-				<div class="alert alert-danger mb-0">
-					<p><strong>Your license key is expired</strong>, so you no longer get any updates. Don't miss our
-                        latest improvements and make sure that everything works smoothly.</p>
-                    <p>If you renewed your license but you still see this message, click on the "Reactivate License" button.</p>
-					<p class="mb-0"><a href="https://www.pixelyoursite.com/checkout/?edd_license_key=<?php esc_attr_e(
-						$license_key ); ?>&utm_campaign=admin&utm_source=licenses&utm_medium=renew" target="_blank"><strong>Click here to renew your license now</strong></a></p>
-				</div>
-			</div>
-		</div>
-
+            <div class="alert alert-danger">
+                <p><strong>Your license key is expired</strong>, so you no longer get any updates. Don't miss our
+                    latest improvements and make sure that everything works smoothly.</p>
+                <p>If you renewed your license but you still see this message, click on the "Reactivate License" button.</p>
+                <p><a href="https://www.pixelyoursite.com/checkout/?edd_license_key=<?php echo esc_attr(
+                    $license_key ); ?>&utm_campaign=admin&utm_source=licenses&utm_medium=renew" target="_blank"><strong>Click here to renew your license now</strong></a></p>
+            </div>
 		<?php
 	endif;
 
@@ -124,11 +150,10 @@ function renderLicenseControls( $plugin ) {
 function checkLicense()
 {
     $plugins = PYS()->getRegisteredPlugins();
-    if(!get_option(PYS()->getSlug().'_last_check_license') || get_option(PYS()->getSlug().'_last_check_license')['time'] == '' || get_option(PYS()->getSlug().'_last_check_license')['time'] < time() && PYS()->getOption('license_key') && !empty(PYS()->getOption('license_key')))
+    if((!get_option(PYS()->getSlug().'_last_check_license') || get_option(PYS()->getSlug().'_last_check_license')['time'] == '' || get_option(PYS()->getSlug().'_last_check_license')['time'] < time()) && PYS()->getOption('license_key') && !empty(PYS()->getOption('license_key')))
     {
         $license_data = singleCheckLicense(PYS()->getOption('license_key'), PYS());
-        update_option(PYS()->getSlug().'_last_check_license', array('name'=>PYS()->getPluginName(), 'time'=>time()));
-        if(!empty($license_data_single)) {
+        if(!empty($license_data)) {
             set_data_license(PYS(), $license_data);
         }
     }
@@ -137,9 +162,8 @@ function checkLicense()
     foreach ($plugins as $plugin)
     {
         if ( $plugin->getSlug() == 'head_footer' ) { continue; }
-        if(!get_option($plugin->getSlug().'_last_check_license') || get_option($plugin->getSlug().'_last_check_license')['time'] == '' || get_option($plugin->getSlug().'_last_check_license')['time'] < time() && $plugin->getOption('license_key') && !empty($plugin->getOption('license_key')))
+        if((!get_option($plugin->getSlug().'_last_check_license') || get_option($plugin->getSlug().'_last_check_license')['time'] == '' || get_option($plugin->getSlug().'_last_check_license')['time'] < time()) && $plugin->getOption('license_key') && !empty($plugin->getOption('license_key')))
         {
-            update_option($plugin->getSlug().'_last_check_license', array('name'=>$plugin->getPluginName(), 'time'=>time()));
             $license_data_single = singleCheckLicense($plugin->getOption('license_key'), $plugin);
             if(!empty($license_data_single)) {
                 set_data_license($plugin, $license_data_single);
@@ -227,7 +251,7 @@ function set_data_license($plugin, $license_data)
                     break;
             }
 
-            $license_expires = strtotime( $license_data->expires );
+            $license_expires = $license_data->expires === 'lifetime' ? strtotime('2099-12-31 23:59:59') : strtotime($license_data->expires);;
 
         } else {
 
@@ -308,6 +332,7 @@ function set_data_license($plugin, $license_data)
 }
 function singleCheckLicense( $license_key, $plugin)
 {
+    update_option($plugin->getSlug().'_last_check_license', array('name'=>$plugin->getPluginName(), 'time'=>time()));
     $api_params = array(
         'edd_action' => 'check_license',
         'license'    => $license_key,
@@ -316,13 +341,26 @@ function singleCheckLicense( $license_key, $plugin)
     );
 
     $response = wp_remote_post( 'https://www.pixelyoursite.com', array(
-        'timeout'   => 120,
+        'timeout'   => 30,
         'sslverify' => false,
         'body'      => $api_params
     ) );
 
     if ( is_wp_error( $response ) ) {
         return $response;
+    }
+	$status_code = wp_remote_retrieve_response_code($response);
+    if($status_code == 403 || $status_code == 415) {
+        $ip_list = get_all_server_ips();
+
+        $admin_notice = array(
+            'class' => 'danger',
+            'msg'   => __("The request may have been blocked by our firewall. Please try again later. If the problem persists, contact our support and provide the following IP addresses: {$ip_list}", 'pixelyoursite')
+        );
+
+	    if ( ! empty( $admin_notice ) ) {
+		    set_transient( "pys_{$plugin->getSlug()}_license_notice_403", $admin_notice, 60 * 5 );
+	    }
     }
 
     // $license_data->license will be either "valid" or "invalid"
@@ -412,7 +450,7 @@ function updateLicense( $plugin ) {
                         break;
                 }
 
-                $license_expires = strtotime($license_data->expires);
+                $license_expires = $license_data->expires === 'lifetime' ? strtotime('2099-12-31 23:59:59') : strtotime($license_data->expires);;
 
             } else {
 
@@ -538,6 +576,19 @@ function licenseActivate( $license_key, $plugin ) {
 		return $response;
 	}
 
+	$status_code = wp_remote_retrieve_response_code($response);
+	if($status_code == 403 || $status_code == 415) {
+        $ip_list = get_all_server_ips();
+
+        $admin_notice = array(
+            'class' => 'danger',
+            'msg'   => __("The request may have been blocked by our firewall. Please try again later. If the problem persists, contact our support and provide the following IP addresses: {$ip_list}", 'pixelyoursite')
+        );
+
+		if ( ! empty( $admin_notice ) ) {
+			set_transient( "pys_{$plugin->getSlug()}_license_notice_403", $admin_notice, 60 * 5 );
+		}
+	}
 	// $license_data->license will be either "valid" or "invalid"
 	return json_decode( wp_remote_retrieve_body( $response ) );
 
@@ -567,8 +618,69 @@ function licenseDeactivate( $license_key, $plugin ) {
 	if ( is_wp_error( $response ) ) {
 		return $response;
 	}
+	$status_code = wp_remote_retrieve_response_code($response);
+	if($status_code == 403 || $status_code == 415) {
+        $ip_list = get_all_server_ips();
 
+        $admin_notice = array(
+            'class' => 'danger',
+            'msg'   => __("The request may have been blocked by our firewall. Please try again later. If the problem persists, contact our support and provide the following IP addresses: {$ip_list}", 'pixelyoursite')
+        );
+
+		if ( ! empty( $admin_notice ) ) {
+			set_transient( "pys_{$plugin->getSlug()}_license_notice_403", $admin_notice, 60 * 5 );
+		}
+	}
 	// $license_data->license will be either "deactivated" or "failed"
 	return json_decode( wp_remote_retrieve_body( $response ) );
 
+}
+
+function get_all_server_ips(): string {
+    $ips = [];
+
+    // 1. Get external/public IP using an external service
+    $external_ip = @file_get_contents('https://api64.ipify.org?format=json');
+    if ($external_ip) {
+        $decoded = json_decode($external_ip, true);
+        if (!empty($decoded['ip'])) {
+            $ips[] = $decoded['ip'];
+        }
+    }
+
+    // 2. Get IP from the server's hostname
+    $hostname = gethostname();
+    if ($hostname) {
+        $hostname_ip = gethostbyname($hostname);
+        if (filter_var($hostname_ip, FILTER_VALIDATE_IP)) {
+            $ips[] = $hostname_ip;
+        }
+
+        // 3. Get all IPs associated with the hostname
+        $multiple_ips = gethostbynamel($hostname);
+        if (is_array($multiple_ips)) {
+            foreach ($multiple_ips as $ip) {
+                if (filter_var($ip, FILTER_VALIDATE_IP)) {
+                    $ips[] = $ip;
+                }
+            }
+        }
+    }
+
+    // 4. Get IP resolved from the server name (e.g., domain)
+    if (!empty($_SERVER['SERVER_NAME'])) {
+        $server_name_ip = gethostbyname($_SERVER['SERVER_NAME']);
+        if (filter_var($server_name_ip, FILTER_VALIDATE_IP)) {
+            $ips[] = $server_name_ip;
+        }
+    }
+
+    // 5. Get the IP address of the interface the server is running on
+    if (!empty($_SERVER['SERVER_ADDR']) && filter_var($_SERVER['SERVER_ADDR'], FILTER_VALIDATE_IP)) {
+        $ips[] = $_SERVER['SERVER_ADDR'];
+    }
+
+    // Remove duplicates and return as a comma-separated string
+    $unique_ips = array_unique($ips);
+    return implode(', ', $unique_ips);
 }

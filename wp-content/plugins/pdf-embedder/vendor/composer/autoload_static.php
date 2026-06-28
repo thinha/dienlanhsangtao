@@ -4,21 +4,21 @@
 
 namespace Composer\Autoload;
 
-class ComposerStaticInitc435c53d74ac03240f74da72ce957c81
+class ComposerStaticInit98ab03291b55d805cefd74a5aa96f007
 {
     public static $files = array (
         'd719223dd6aebe97c6bc9d0ea46ca6eb' => __DIR__ . '/../..' . '/deprecated/deprecated.php',
     );
 
     public static $prefixLengthsPsr4 = array (
-        'P' => 
+        'P' =>
         array (
             'PDFEmbedder\\' => 12,
         ),
     );
 
     public static $prefixDirsPsr4 = array (
-        'PDFEmbedder\\' => 
+        'PDFEmbedder\\' =>
         array (
             0 => __DIR__ . '/../..' . '/src',
         ),
@@ -27,10 +27,18 @@ class ComposerStaticInitc435c53d74ac03240f74da72ce957c81
     public static $classMap = array (
         'Composer\\InstalledVersions' => __DIR__ . '/..' . '/composer/InstalledVersions.php',
         'PDFEmbedder\\Admin\\Admin' => __DIR__ . '/../..' . '/src/Admin/Admin.php',
-        'PDFEmbedder\\Admin\\Education\\SettingsBottomBanner' => __DIR__ . '/../..' . '/src/Admin/Education/SettingsBottomBanner.php',
+        'PDFEmbedder\\Admin\\Education\\DemoContent' => __DIR__ . '/../..' . '/src/Admin/Education/DemoContent.php',
+        'PDFEmbedder\\Admin\\Education\\GetStarted' => __DIR__ . '/../..' . '/src/Admin/Education/GetStarted.php',
         'PDFEmbedder\\Admin\\Education\\SettingsTopBar' => __DIR__ . '/../..' . '/src/Admin/Education/SettingsTopBar.php',
         'PDFEmbedder\\Admin\\License' => __DIR__ . '/../..' . '/src/Admin/License.php',
         'PDFEmbedder\\Admin\\MediaLibrary' => __DIR__ . '/../..' . '/src/Admin/MediaLibrary.php',
+        'PDFEmbedder\\Admin\\Pages\\About' => __DIR__ . '/../..' . '/src/Admin/Pages/About.php',
+        'PDFEmbedder\\Admin\\Pages\\GetPro' => __DIR__ . '/../..' . '/src/Admin/Pages/GetPro.php',
+        'PDFEmbedder\\Admin\\Pages\\Mobile' => __DIR__ . '/../..' . '/src/Admin/Pages/Mobile.php',
+        'PDFEmbedder\\Admin\\Pages\\Page' => __DIR__ . '/../..' . '/src/Admin/Pages/Page.php',
+        'PDFEmbedder\\Admin\\Pages\\Secure' => __DIR__ . '/../..' . '/src/Admin/Pages/Secure.php',
+        'PDFEmbedder\\Admin\\Pages\\Settings' => __DIR__ . '/../..' . '/src/Admin/Pages/Settings.php',
+        'PDFEmbedder\\Admin\\Pages\\Watermarks' => __DIR__ . '/../..' . '/src/Admin/Pages/Watermarks.php',
         'PDFEmbedder\\Admin\\Partners' => __DIR__ . '/../..' . '/src/Admin/Partners.php',
         'PDFEmbedder\\Admin\\WPorgReview' => __DIR__ . '/../..' . '/src/Admin/WPorgReview.php',
         'PDFEmbedder\\Helpers\\Assets' => __DIR__ . '/../..' . '/src/Helpers/Assets.php',
@@ -52,9 +60,9 @@ class ComposerStaticInitc435c53d74ac03240f74da72ce957c81
     public static function getInitializer(ClassLoader $loader)
     {
         return \Closure::bind(function () use ($loader) {
-            $loader->prefixLengthsPsr4 = ComposerStaticInitc435c53d74ac03240f74da72ce957c81::$prefixLengthsPsr4;
-            $loader->prefixDirsPsr4 = ComposerStaticInitc435c53d74ac03240f74da72ce957c81::$prefixDirsPsr4;
-            $loader->classMap = ComposerStaticInitc435c53d74ac03240f74da72ce957c81::$classMap;
+            $loader->prefixLengthsPsr4 = ComposerStaticInit98ab03291b55d805cefd74a5aa96f007::$prefixLengthsPsr4;
+            $loader->prefixDirsPsr4 = ComposerStaticInit98ab03291b55d805cefd74a5aa96f007::$prefixDirsPsr4;
+            $loader->classMap = ComposerStaticInit98ab03291b55d805cefd74a5aa96f007::$classMap;
 
         }, null, ClassLoader::class);
     }

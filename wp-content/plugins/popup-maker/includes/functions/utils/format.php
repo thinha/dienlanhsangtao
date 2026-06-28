@@ -1,7 +1,10 @@
 <?php
-/*******************************************************************************
- * Copyright (c) 2019, Code Atlantic LLC
- ******************************************************************************/
+/**
+ * Functions for Format Utility
+ *
+ * @package   PopupMaker
+ * @copyright Copyright (c) 2024, Code Atlantic LLC
+ */
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit; // Exit if accessed directly
@@ -29,21 +32,10 @@ function pum_format_number( $number, $format = '' ) {
 
 /**
  * @param int|float $number
- * @param string $format U|human|human-readable
+ * @param string    $format U|human|human-readable
  *
  * @return int|string
  */
 function pum_format_time( $number, $format = '' ) {
 	return PUM_Utils_Format::time( $number, $format );
-}
-
-/**
- * Removes <p></p> around URLs
- *
- * @param string $content
- *
- * @return string
- */
-function pum_unwrap_urls( $content = '' ) {
-	return PUM_Utils_Format::unwrap_urls( $content );
 }

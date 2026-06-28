@@ -1,7 +1,10 @@
 <?php
-/*******************************************************************************
- * Copyright (c) 2020, WP Popup Maker
- ******************************************************************************/
+/**
+ * Interface for Form Integration
+ *
+ * @package   PopupMaker
+ * @copyright Copyright (c) 2024, Code Atlantic LLC
+ */
 
 interface PUM_Interface_Integration_Form extends PUM_Interface_Integration {
 
@@ -35,5 +38,4 @@ interface PUM_Interface_Integration_Form extends PUM_Interface_Integration {
 	 * @return array
 	 */
 	public function custom_styles( $css = [] );
-
 }

@@ -403,7 +403,7 @@ function flatsome_smart_links($link){
     }
     // Get link by page title
     else if(strpos($link, '/') === false && !is_numeric($link)){
-      $get_page = get_page_by_title($link);
+      $get_page = flatsome_get_page_by_title($link);
       if( $get_page ) $link = get_permalink($get_page->ID);
     }
 

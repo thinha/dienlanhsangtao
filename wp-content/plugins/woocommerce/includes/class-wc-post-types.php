@@ -10,6 +10,9 @@
 
 defined( 'ABSPATH' ) || exit;
 
+use Automattic\WooCommerce\Enums\OrderInternalStatus;
+use Automattic\WooCommerce\Internal\DataStores\Orders\CustomOrdersTableController;
+
 /**
  * Post types Class.
  */
@@ -92,19 +95,23 @@ class WC_Post_Types {
 					'update_count_callback' => '_wc_term_recount',
 					'label'                 => __( 'Categories', 'woocommerce' ),
 					'labels'                => array(
-						'name'              => __( 'Product categories', 'woocommerce' ),
-						'singular_name'     => __( 'Category', 'woocommerce' ),
-						'menu_name'         => _x( 'Categories', 'Admin menu name', 'woocommerce' ),
-						'search_items'      => __( 'Search categories', 'woocommerce' ),
-						'all_items'         => __( 'All categories', 'woocommerce' ),
-						'parent_item'       => __( 'Parent category', 'woocommerce' ),
-						'parent_item_colon' => __( 'Parent category:', 'woocommerce' ),
-						'edit_item'         => __( 'Edit category', 'woocommerce' ),
-						'update_item'       => __( 'Update category', 'woocommerce' ),
-						'add_new_item'      => __( 'Add new category', 'woocommerce' ),
-						'new_item_name'     => __( 'New category name', 'woocommerce' ),
-						'not_found'         => __( 'No categories found', 'woocommerce' ),
+						'name'                  => __( 'Product categories', 'woocommerce' ),
+						'singular_name'         => __( 'Category', 'woocommerce' ),
+						'menu_name'             => _x( 'Categories', 'Admin menu name', 'woocommerce' ),
+						'search_items'          => __( 'Search categories', 'woocommerce' ),
+						'all_items'             => __( 'All categories', 'woocommerce' ),
+						'parent_item'           => __( 'Parent category', 'woocommerce' ),
+						'parent_item_colon'     => __( 'Parent category:', 'woocommerce' ),
+						'edit_item'             => __( 'Edit category', 'woocommerce' ),
+						'update_item'           => __( 'Update category', 'woocommerce' ),
+						'add_new_item'          => __( 'Add new category', 'woocommerce' ),
+						'new_item_name'         => __( 'New category name', 'woocommerce' ),
+						'not_found'             => __( 'No categories found', 'woocommerce' ),
+						'item_link'             => __( 'Product Category Link', 'woocommerce' ),
+						'item_link_description' => __( 'A link to a product category.', 'woocommerce' ),
+						'template_name'         => _x( 'Products by Category', 'Template name', 'woocommerce' ),
 					),
+					'show_in_rest'          => true,
 					'show_ui'               => true,
 					'query_var'             => true,
 					'capabilities'          => array(
@@ -146,7 +153,11 @@ class WC_Post_Types {
 						'add_or_remove_items'        => __( 'Add or remove tags', 'woocommerce' ),
 						'choose_from_most_used'      => __( 'Choose from the most used tags', 'woocommerce' ),
 						'not_found'                  => __( 'No tags found', 'woocommerce' ),
+						'item_link'                  => __( 'Product Tag Link', 'woocommerce' ),
+						'item_link_description'      => __( 'A link to a product tag.', 'woocommerce' ),
+						'template_name'              => _x( 'Products by Tag', 'Template name', 'woocommerce' ),
 					),
+					'show_in_rest'          => true,
 					'show_ui'               => true,
 					'query_var'             => true,
 					'capabilities'          => array(
@@ -196,6 +207,35 @@ class WC_Post_Types {
 						'assign_terms' => 'assign_product_terms',
 					),
 					'rewrite'               => false,
+				)
+			)
+		);
+
+		register_taxonomy(
+			'pos_product_visibility',
+			/**
+			 * Filter the post types that the POS product visibility taxonomy is attached to.
+			 *
+			 * @since 10.5.0
+			 * @param array $post_types Array of post types.
+			 */
+			apply_filters( 'woocommerce_taxonomy_objects_pos_product_visibility', array( 'product', 'product_variation' ) ),
+			/**
+			 * Filter the arguments for the POS product visibility taxonomy.
+			 *
+			 * @since 10.5.0
+			 * @param array $args Array of taxonomy arguments.
+			 */
+			apply_filters(
+				'woocommerce_taxonomy_args_pos_product_visibility',
+				array(
+					'hierarchical'      => false,
+					'show_ui'           => false,
+					'show_in_nav_menus' => false,
+					'query_var'         => false,
+					'rewrite'           => false,
+					'public'            => false,
+					'label'             => _x( 'POS Product visibility', 'Taxonomy name', 'woocommerce' ),
 				)
 			)
 		);
@@ -260,7 +300,7 @@ class WC_Post_Types {
 
 					if ( 1 === $tax->attribute_public && sanitize_title( $tax->attribute_name ) ) {
 						$taxonomy_data['rewrite'] = array(
-							'slug'         => trailingslashit( $permalinks['attribute_rewrite_slug'] ) . sanitize_title( $tax->attribute_name ),
+							'slug'         => trailingslashit( $permalinks['attribute_rewrite_slug'] ) . urldecode( sanitize_title( $tax->attribute_name ) ),
 							'with_front'   => false,
 							'hierarchical' => true,
 						);
@@ -293,16 +333,20 @@ class WC_Post_Types {
 
 		$shop_page_id = wc_get_page_id( 'shop' );
 
-		if ( current_theme_supports( 'woocommerce' ) ) {
+		if ( wc_current_theme_supports_woocommerce_or_fse() ) {
 			$has_archive = $shop_page_id && get_post( $shop_page_id ) ? urldecode( get_page_uri( $shop_page_id ) ) : 'shop';
 		} else {
 			$has_archive = false;
 		}
 
 		// If theme support changes, we may need to flush permalinks since some are changed based on this flag.
-		$theme_support = current_theme_supports( 'woocommerce' ) ? 'yes' : 'no';
-		if ( get_option( 'current_theme_supports_woocommerce' ) !== $theme_support && update_option( 'current_theme_supports_woocommerce', $theme_support ) ) {
-			update_option( 'woocommerce_queue_flush_rewrite_rules', 'yes' );
+		// Skip this check in WP-CLI and cron contexts: themes may not be loaded (e.g. --skip-themes),
+		// which would incorrectly record theme support as "no" and corrupt rewrite rules on the frontend.
+		if ( ! ( defined( 'WP_CLI' ) && WP_CLI ) && ! wp_doing_cron() ) {
+			$theme_support = wc_current_theme_supports_woocommerce_or_fse() ? 'yes' : 'no';
+			if ( get_option( 'current_theme_supports_woocommerce' ) !== $theme_support && update_option( 'current_theme_supports_woocommerce', $theme_support ) ) {
+				update_option( 'woocommerce_queue_flush_rewrite_rules', 'yes' );
+			}
 		}
 
 		register_post_type(
@@ -335,10 +379,13 @@ class WC_Post_Types {
 						'filter_items_list'     => __( 'Filter products', 'woocommerce' ),
 						'items_list_navigation' => __( 'Products navigation', 'woocommerce' ),
 						'items_list'            => __( 'Products list', 'woocommerce' ),
+						'item_link'             => __( 'Product Link', 'woocommerce' ),
+						'item_link_description' => __( 'A link to a product.', 'woocommerce' ),
 					),
-					'description'         => __( 'This is where you can add new products to your store.', 'woocommerce' ),
+					'description'         => __( 'This is where you can browse products in this store.', 'woocommerce' ),
 					'public'              => true,
 					'show_ui'             => true,
+					'menu_icon'           => 'dashicons-archive',
 					'capability_type'     => 'product',
 					'map_meta_cap'        => true,
 					'publicly_queryable'  => true,
@@ -424,7 +471,6 @@ class WC_Post_Types {
 					'public'                           => false,
 					'hierarchical'                     => false,
 					'supports'                         => false,
-					'exclude_from_orders_screen'       => false,
 					'add_order_meta_boxes'             => false,
 					'exclude_from_order_count'         => true,
 					'exclude_from_order_views'         => false,
@@ -550,7 +596,7 @@ class WC_Post_Types {
 		$order_statuses = apply_filters(
 			'woocommerce_register_shop_order_post_statuses',
 			array(
-				'wc-pending'    => array(
+				OrderInternalStatus::PENDING    => array(
 					'label'                     => _x( 'Pending payment', 'Order status', 'woocommerce' ),
 					'public'                    => false,
 					'exclude_from_search'       => false,
@@ -559,7 +605,7 @@ class WC_Post_Types {
 					/* translators: %s: number of orders */
 					'label_count'               => _n_noop( 'Pending payment <span class="count">(%s)</span>', 'Pending payment <span class="count">(%s)</span>', 'woocommerce' ),
 				),
-				'wc-processing' => array(
+				OrderInternalStatus::PROCESSING => array(
 					'label'                     => _x( 'Processing', 'Order status', 'woocommerce' ),
 					'public'                    => false,
 					'exclude_from_search'       => false,
@@ -568,7 +614,7 @@ class WC_Post_Types {
 					/* translators: %s: number of orders */
 					'label_count'               => _n_noop( 'Processing <span class="count">(%s)</span>', 'Processing <span class="count">(%s)</span>', 'woocommerce' ),
 				),
-				'wc-on-hold'    => array(
+				OrderInternalStatus::ON_HOLD    => array(
 					'label'                     => _x( 'On hold', 'Order status', 'woocommerce' ),
 					'public'                    => false,
 					'exclude_from_search'       => false,
@@ -577,7 +623,7 @@ class WC_Post_Types {
 					/* translators: %s: number of orders */
 					'label_count'               => _n_noop( 'On hold <span class="count">(%s)</span>', 'On hold <span class="count">(%s)</span>', 'woocommerce' ),
 				),
-				'wc-completed'  => array(
+				OrderInternalStatus::COMPLETED  => array(
 					'label'                     => _x( 'Completed', 'Order status', 'woocommerce' ),
 					'public'                    => false,
 					'exclude_from_search'       => false,
@@ -586,7 +632,7 @@ class WC_Post_Types {
 					/* translators: %s: number of orders */
 					'label_count'               => _n_noop( 'Completed <span class="count">(%s)</span>', 'Completed <span class="count">(%s)</span>', 'woocommerce' ),
 				),
-				'wc-cancelled'  => array(
+				OrderInternalStatus::CANCELLED  => array(
 					'label'                     => _x( 'Cancelled', 'Order status', 'woocommerce' ),
 					'public'                    => false,
 					'exclude_from_search'       => false,
@@ -595,7 +641,7 @@ class WC_Post_Types {
 					/* translators: %s: number of orders */
 					'label_count'               => _n_noop( 'Cancelled <span class="count">(%s)</span>', 'Cancelled <span class="count">(%s)</span>', 'woocommerce' ),
 				),
-				'wc-refunded'   => array(
+				OrderInternalStatus::REFUNDED   => array(
 					'label'                     => _x( 'Refunded', 'Order status', 'woocommerce' ),
 					'public'                    => false,
 					'exclude_from_search'       => false,
@@ -604,7 +650,7 @@ class WC_Post_Types {
 					/* translators: %s: number of orders */
 					'label_count'               => _n_noop( 'Refunded <span class="count">(%s)</span>', 'Refunded <span class="count">(%s)</span>', 'woocommerce' ),
 				),
-				'wc-failed'     => array(
+				OrderInternalStatus::FAILED     => array(
 					'label'                     => _x( 'Failed', 'Order status', 'woocommerce' ),
 					'public'                    => false,
 					'exclude_from_search'       => false,

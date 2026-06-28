@@ -1,16 +1,9 @@
-<?php //phpcs:ignore WordPress.Files.FileName.NotHyphenatedLowercase
+<?php
 /**
  * Custom Autoloader Composer Plugin, hooks into composer events to generate the custom autoloader.
  *
  * @package automattic/jetpack-autoloader
  */
-
-// phpcs:disable PHPCompatibility.Keywords.NewKeywords.t_useFound
-// phpcs:disable PHPCompatibility.LanguageConstructs.NewLanguageConstructs.t_ns_separatorFound
-// phpcs:disable PHPCompatibility.Keywords.NewKeywords.t_namespaceFound
-// phpcs:disable WordPress.Files.FileName.NotHyphenatedLowercase
-// phpcs:disable WordPress.Files.FileName.InvalidClassFileName
-// phpcs:disable WordPress.NamingConventions.ValidVariableName.VariableNotSnakeCase
 
 namespace Automattic\Jetpack\Autoloader;
 
@@ -98,6 +91,13 @@ class CustomAutoloaderPlugin implements PluginInterface, EventSubscriberInterfac
 	 * @param Event $event Script event object.
 	 */
 	public function postAutoloadDump( Event $event ) {
+		// When the autoloader is not required by the root package we don't want to execute it.
+		// This prevents unwanted transitive execution that generates unused autoloaders or
+		// at worst throws fatal executions.
+		if ( ! $this->isRequiredByRoot() ) {
+			return;
+		}
+
 		$config = $this->composer->getConfig();
 
 		if ( 'vendor' !== $config->raw()['config']['vendor-dir'] ) {
@@ -116,7 +116,6 @@ class CustomAutoloaderPlugin implements PluginInterface, EventSubscriberInterfac
 
 		$generator = new AutoloadGenerator( $this->io );
 		$generator->dump( $this->composer, $config, $localRepo, $package, $installationManager, 'composer', $optimize, $suffix );
-		$this->generated = true;
 	}
 
 	/**
@@ -138,16 +137,14 @@ class CustomAutoloaderPlugin implements PluginInterface, EventSubscriberInterfac
 
 		// Reuse our own suffix, if any.
 		if ( is_readable( $vendorPath . '/autoload_packages.php' ) ) {
-			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents
 			$content = file_get_contents( $vendorPath . '/autoload_packages.php' );
-			if ( preg_match( '/^namespace Automattic\\\\Jetpack\\\\Autoloader\\\\jp([^;\s]+);/m', $content, $match ) ) {
+			if ( preg_match( '/^namespace Automattic\\\\Jetpack\\\\Autoloader\\\\jp([^;\s]+?)(?:\\\\al[^;\s]+)?;/m', $content, $match ) ) {
 				return $match[1];
 			}
 		}
 
 		// Reuse Composer's suffix, if any.
 		if ( is_readable( $vendorPath . '/autoload.php' ) ) {
-			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents
 			$content = file_get_contents( $vendorPath . '/autoload.php' );
 			if ( preg_match( '{ComposerAutoloaderInit([^:\s]+)::}', $content, $match ) ) {
 				return $match[1];
@@ -158,4 +155,34 @@ class CustomAutoloaderPlugin implements PluginInterface, EventSubscriberInterfac
 		return md5( uniqid( '', true ) );
 	}
 
+	/**
+	 * Checks to see whether or not the root package is the one that required the autoloader.
+	 *
+	 * @return bool
+	 */
+	private function isRequiredByRoot() {
+		$package  = $this->composer->getPackage();
+		$requires = $package->getRequires();
+		if ( ! is_array( $requires ) ) { // @phan-suppress-current-line PhanRedundantCondition -- Earlier Composer versions may not have guaranteed this.
+			$requires = array();
+		}
+		$devRequires = $package->getDevRequires();
+		if ( ! is_array( $devRequires ) ) { // @phan-suppress-current-line PhanRedundantCondition -- Earlier Composer versions may not have guaranteed this.
+			$devRequires = array();
+		}
+		$requires = array_merge( $requires, $devRequires );
+
+		if ( empty( $requires ) ) {
+			$this->io->writeError( "\n<error>The package is not required and this should never happen?</error>", true );
+			exit();
+		}
+
+		foreach ( $requires as $require ) {
+			if ( 'automattic/jetpack-autoloader' === $require->getTarget() ) {
+				return true;
+			}
+		}
+
+		return false;
+	}
 }

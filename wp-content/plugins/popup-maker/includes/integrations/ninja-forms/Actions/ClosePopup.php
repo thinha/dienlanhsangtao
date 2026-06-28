@@ -1,4 +1,14 @@
-<?php if ( ! defined( 'ABSPATH' ) ) {
+<?php
+/**
+ * Integrations for ninja-forms actions close popup
+ *
+ * @package   PopupMaker
+ * @copyright Copyright (c) 2024, Code Atlantic LLC
+ *
+ * phpcs:disable PSR2.Classes.PropertyDeclaration.Underscore
+ */
+
+if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
@@ -15,7 +25,7 @@ final class NF_PUM_Actions_ClosePopup extends NF_Abstracts_Action {
 	/**
 	 * @var array
 	 */
-	protected $_tags = array();
+	protected $_tags = [];
 
 	/**
 	 * @var string
@@ -35,8 +45,8 @@ final class NF_PUM_Actions_ClosePopup extends NF_Abstracts_Action {
 
 		$this->_nicename = __( 'Close Popup', 'popup-maker' );
 
-		$settings = array(
-			'close_delay' => array(
+		$settings = [
+			'close_delay' => [
 				'name'        => 'close_delay',
 				'type'        => 'number',
 				'group'       => 'primary',
@@ -44,8 +54,8 @@ final class NF_PUM_Actions_ClosePopup extends NF_Abstracts_Action {
 				'placeholder' => '',
 				'width'       => 'full',
 				'value'       => __( '0', 'popup-maker' ),
-			),
-		);
+			],
+		];
 
 		$this->_settings = array_merge( $this->_settings, $settings );
 	}
@@ -54,8 +64,10 @@ final class NF_PUM_Actions_ClosePopup extends NF_Abstracts_Action {
 	* PUBLIC METHODS
 	*/
 
+	/**
+	 * Saves the settings.
+	 */
 	public function save( $action_settings ) {
-
 	}
 
 	public function process( $action_settings, $form_id, $data ) {
@@ -65,7 +77,6 @@ final class NF_PUM_Actions_ClosePopup extends NF_Abstracts_Action {
 		}
 
 		if ( isset( $action_settings['close_delay'] ) ) {
-
 			$data['actions']['closedelay'] = intval( $action_settings['close_delay'] );
 
 			if ( strlen( $data['actions']['closedelay'] ) >= 3 ) {

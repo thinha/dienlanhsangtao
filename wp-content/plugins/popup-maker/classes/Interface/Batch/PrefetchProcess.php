@@ -1,7 +1,10 @@
 <?php
-/*******************************************************************************
- * Copyright (c) 2019, Code Atlantic LLC
- ******************************************************************************/
+/**
+ * Interface for Batch PrefetchProcess
+ *
+ * @package   PopupMaker
+ * @copyright Copyright (c) 2024, Code Atlantic LLC
+ */
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -30,5 +33,4 @@ interface PUM_Interface_Batch_PrefetchProcess extends PUM_Interface_Batch_Proces
 	 * Pre-fetches data to speed up processing.
 	 */
 	public function pre_fetch();
-
 }

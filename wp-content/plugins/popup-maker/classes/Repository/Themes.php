@@ -1,7 +1,10 @@
 <?php
-/*******************************************************************************
- * Copyright (c) 2019, Code Atlantic LLC
- ******************************************************************************/
+/**
+ * Repository Themes
+ *
+ * @package   PopupMaker
+ * @copyright Copyright (c) 2024, Code Atlantic LLC
+ */
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -31,15 +34,13 @@ class PUM_Repository_Themes extends PUM_Abstract_Repository_Posts {
 	 *
 	 * @return array
 	 */
-	protected function build_wp_query_args( $args = array() ) {
+	protected function build_wp_query_args( $args = [] ) {
 		// Ordering
-		$orderby = array();
+		$orderby = [];
 
 		// Meta Query
-		if ( ! isset( $args['meta_query'] ) ) {
-			$args['meta_query'] = array(
-				'relation' => 'AND',
-			);
+		if ( isset( $args['meta_query'] ) && empty( $args['meta_query']['relation'] ) ) {
+			$args['meta_query']['relation'] = 'AND';
 		}
 
 		if ( isset( $args['themes'] ) ) {
@@ -56,15 +57,15 @@ class PUM_Repository_Themes extends PUM_Abstract_Repository_Posts {
 		 */
 		if ( ! isset( $args['orderby'] ) ) {
 			$orderby['post_modified'] = isset( $args['order'] ) ? $args['order'] : 'DESC';
-		} elseif ( ! empty( $args['post__in'] ) && in_array( $args['orderby'], array( 'post__in', 'user_order' ) ) ) {
+		} elseif ( ! empty( $args['post__in'] ) && in_array( $args['orderby'], [ 'post__in', 'user_order' ], true ) ) {
 			// This one can't be part of an $orderby array so needs to override.
 			$orderby = 'post__in';
 		} else {
 			switch ( $args['orderby'] ) {
-				case 'name' :
+				case 'name':
 					$orderby['post_title'] = isset( $args['order'] ) ? $args['order'] : 'ASC';
 					break;
-				case 'date' :
+				case 'date':
 					$orderby['post_date'] = isset( $args['order'] ) ? $args['order'] : 'DESC';
 					break;
 				case 'activity':
@@ -90,8 +91,10 @@ class PUM_Repository_Themes extends PUM_Abstract_Repository_Posts {
 	 *
 	 * @return PUM_Model_Theme|WP_Post
 	 * @throws \InvalidArgumentException
+	 *
+	 * Ignore phpcs because this explictly overrides the parent method return type.
 	 */
-	public function get_item( $id ) {
+	public function get_item( $id ) { // phpcs:ignore Generic.CodeAnalysis.UselessOverridingMethod.Found
 		return parent::get_item( $id );
 	}
 
@@ -99,8 +102,10 @@ class PUM_Repository_Themes extends PUM_Abstract_Repository_Posts {
 	 * @param array $args
 	 *
 	 * @return PUM_Model_Theme[]|WP_Post[]
+	 *
+	 * Ignore phpcs because this explictly overrides the parent method return type.
 	 */
-	public function get_items( $args = array() ) {
+	public function get_items( $args = [] ) { // phpcs:ignore Generic.CodeAnalysis.UselessOverridingMethod.Found
 		return parent::get_items( $args );
 	}
 
@@ -109,8 +114,10 @@ class PUM_Repository_Themes extends PUM_Abstract_Repository_Posts {
 	 *
 	 * @return PUM_Model_Theme|WP_Post
 	 * @throws InvalidArgumentException
+	 *
+	 * Ignore phpcs because this explictly overrides the parent method return type.
 	 */
-	public function create_item( $data ) {
+	public function create_item( $data ) { // phpcs:ignore Generic.CodeAnalysis.UselessOverridingMethod.Found
 		return parent::create_item( $data );
 	}
 
@@ -120,8 +127,10 @@ class PUM_Repository_Themes extends PUM_Abstract_Repository_Posts {
 	 *
 	 * @return PUM_Model_Theme|WP_Post
 	 * @throws Exception
+	 *
+	 * Ignore phpcs because this explictly overrides the parent method return type.
 	 */
-	public function update_item( $id, $data ) {
+	public function update_item( $id, $data ) { // phpcs:ignore Generic.CodeAnalysis.UselessOverridingMethod.Found
 		return parent::update_item( $id, $data );
 	}
 

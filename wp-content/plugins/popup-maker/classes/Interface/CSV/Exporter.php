@@ -1,7 +1,10 @@
 <?php
-/*******************************************************************************
- * Copyright (c) 2019, Code Atlantic LLC
- ******************************************************************************/
+/**
+ * Interface for CSV Exporter
+ *
+ * @package   PopupMaker
+ * @copyright Copyright (c) 2024, Code Atlantic LLC
+ */
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -43,5 +46,4 @@ interface PUM_Interface_CSV_Exporter extends PUM_Interface_Batch_Exporter {
 	 * @return void
 	 */
 	public function csv_rows_out();
-
 }

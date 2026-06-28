@@ -1,7 +1,10 @@
 <?php
-/*******************************************************************************
- * Copyright (c) 2019, Code Atlantic LLC
- ******************************************************************************/
+/**
+ * Format Utility
+ *
+ * @package   PopupMaker
+ * @copyright Copyright (c) 2024, Code Atlantic LLC
+ */
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -13,57 +16,46 @@ if ( ! defined( 'ABSPATH' ) ) {
 class PUM_Utils_Format {
 
 	/**
-	 * Removes <p></p> around URLs
+	 * Format timestamp based on specified format
 	 *
-	 * @param string $content
-	 *
-	 * @return mixed|string
-	 */
-	public static function unwrap_urls( $content = '' ) {
-		$content = preg_replace( "/<\\w+>((([A-Za-z]{3,9}:(?:\\/\\/)?)(?:[-;:&=\\+\\$,\\w]+@)?[A-Za-z0-9.-]+|(?:www.|[-;:&=\\+\\$,\\w]+@)[A-Za-z0-9.-]+)((?:\\/[\\+~%\\/.\\w-_]*)?\\??(?:[-\\+=&;%@.\\w_]*)#?(?:[.\\!\\/\\\\w]*))?)<\\/\\w+>/", "$1\n\n", $content );
-		$content = str_replace( "</p>", "</p>\n\n", $content );
-
-		return $content;
-	}
-
-
-	/**
-	 * @param        $time
-	 * @param string $format U|human
-	 *
-	 * @return false|int|mixed
+	 * @param int|string $time Unix timestamp or date string
+	 * @param string     $format Format type: 'U' for timestamp, 'human'/'human-readable' for readable format
+	 * @return ($format is 'human'|'human-readable' ? string : int|false) Formatted time or false on failure
 	 */
 	public static function time( $time, $format = 'U' ) {
 		if ( ! PUM_Utils_Time::is_timestamp( $time ) ) {
-			$time = strtotime( $time );
+			$time = strtotime( (string) $time );
+			if ( false === $time ) {
+				return false;
+			}
 		}
+
+		$time = (int) $time;
 
 		switch ( $format ) {
 			case 'human':
 			case 'human-readable':
 				return self::human_time( $time );
-				break;
 
 			default:
 			case 'U':
 				return $time;
-				break;
 		}
 	}
 
 
 	/**
-	 * @param int|float $number
-	 * @param string    $format
+	 * Format number based on specified format
 	 *
-	 * @return int|string
+	 * @param int|float|string $number Number to format
+	 * @param string           $format Format type (currently only 'abbreviated' supported)
+	 * @return int|string Formatted number as integer for small values or string for abbreviated
 	 */
 	public static function number( $number, $format = '' ) {
 		switch ( $format ) {
 			default:
 			case 'abbreviated':
 				return self::abbreviated_number( $number );
-				break;
 		}
 	}
 
@@ -71,10 +63,9 @@ class PUM_Utils_Format {
 	/**
 	 * Convert the timestamp to a nice time format
 	 *
-	 * @param int      $time
-	 * @param int|null $current
-	 *
-	 * @return mixed
+	 * @param int      $time Unix timestamp to format
+	 * @param int|null $current Current timestamp for comparison (defaults to current time)
+	 * @return string Human-readable time difference (filtered through WordPress)
 	 */
 	public static function human_time( $time, $current = null ) {
 		if ( empty( $current ) ) {
@@ -84,31 +75,51 @@ class PUM_Utils_Format {
 		$diff = (int) abs( $current - $time );
 
 		if ( $diff < 60 ) {
-			$since = sprintf( __( '%ss', 'popup-maker' ), $diff );
-		} else if ( $diff < HOUR_IN_SECONDS ) {
+			$since = sprintf(
+				/* translators: 1: Number of seconds. */
+				__( '%ss', 'popup-maker' ),
+				$diff
+			);
+		} elseif ( $diff < HOUR_IN_SECONDS ) {
 			$mins = round( $diff / MINUTE_IN_SECONDS );
 			if ( $mins <= 1 ) {
 				$mins = 1;
 			}
-			$since = sprintf( __( '%smin', 'popup-maker' ), $mins );
+			$since = sprintf(
+				/* translators: 1: Number of minutes. */
+				__( '%smin', 'popup-maker' ),
+				$mins
+			);
 		} elseif ( $diff < DAY_IN_SECONDS && $diff >= HOUR_IN_SECONDS ) {
 			$hours = round( $diff / HOUR_IN_SECONDS );
 			if ( $hours <= 1 ) {
 				$hours = 1;
 			}
-			$since = sprintf( __( '%shr', 'popup-maker' ), $hours );
+			$since = sprintf(
+				/* translators: 1: Number of hours. */
+				__( '%shr', 'popup-maker' ),
+				$hours
+			);
 		} elseif ( $diff < WEEK_IN_SECONDS && $diff >= DAY_IN_SECONDS ) {
 			$days = round( $diff / DAY_IN_SECONDS );
 			if ( $days <= 1 ) {
 				$days = 1;
 			}
-			$since = sprintf( __( '%sd', 'popup-maker' ), $days );
+			$since = sprintf(
+				/* translators: 1: Number of days. */
+				__( '%sd', 'popup-maker' ),
+				$days
+			);
 		} elseif ( $diff < MONTH_IN_SECONDS && $diff >= WEEK_IN_SECONDS ) {
 			$weeks = round( $diff / WEEK_IN_SECONDS );
 			if ( $weeks <= 1 ) {
 				$weeks = 1;
 			}
-			$since = sprintf( __( '%sw', 'popup-maker' ), $weeks );
+			$since = sprintf(
+				/* translators: 1: Number of weeks. */
+				__( '%sw', 'popup-maker' ),
+				$weeks
+			);
 		} else {
 			$since = '';
 		}
@@ -117,16 +128,19 @@ class PUM_Utils_Format {
 	}
 
 	/**
-	 * K, M number formatting
+	 * K, M number formatting for large numbers
 	 *
-	 * @param int|float $n
-	 * @param string    $point
-	 * @param string    $sep
-	 *
-	 * @return int|string
+	 * @param int|float|string $n Number to abbreviate
+	 * @param non-empty-string $point Decimal point character
+	 * @param non-empty-string $sep Thousands separator character
+	 * @return int|string Returns 0 for negative or non-numeric values, formatted string for all positive values (e.g., "1.5K", "2.3M", "9,999")
 	 */
 	public static function abbreviated_number( $n, $point = '.', $sep = ',' ) {
-		if ( $n < 0 ) {
+		// Convert to float and validate
+		$n = (float) $n;
+
+		// Check if the conversion resulted in a valid number
+		if ( ! is_numeric( $n ) || $n < 0 ) {
 			return 0;
 		}
 
@@ -137,7 +151,7 @@ class PUM_Utils_Format {
 		$d = $n < 1000000 ? 1000 : 1000000;
 		$f = round( $n / $d, 1 );
 
-		return number_format( $f, $f - intval( $f ) ? 1 : 0, $point, $sep ) . ( $d == 1000 ? 'K' : 'M' );
+		return number_format( $f, $f - intval( $f ) ? 1 : 0, $point, $sep ) . ( 1000 === $d ? 'K' : 'M' );
 	}
 
 	/**
@@ -145,12 +159,10 @@ class PUM_Utils_Format {
 	 *
 	 * Used to prevent WP from adding <br> and <p> tags.
 	 *
-	 * @param string $string
-	 *
-	 * @return mixed
+	 * @param string $str Input string to clean
+	 * @return string Cleaned string with whitespace removed
 	 */
-	public static function strip_white_space( $string = '' ) {
-		return str_replace( array( "\t", "\r", "\n" ), '', $string );
+	public static function strip_white_space( $str = '' ) {
+		return str_replace( [ "\t", "\r", "\n" ], '', $str );
 	}
-
 }

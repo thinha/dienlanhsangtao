@@ -1,7 +1,10 @@
 <?php
-/*******************************************************************************
- * Copyright (c) 2019, Code Atlantic LLC
- ******************************************************************************/
+/**
+ * Abstract for Popup Upgrades
+ *
+ * @package   PopupMaker
+ * @copyright Copyright (c) 2024, Code Atlantic LLC
+ */
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -40,5 +43,4 @@ abstract class PUM_Abstract_Upgrade_Popups extends PUM_Abstract_Upgrade_Posts im
 	 * @param int $popup_id
 	 */
 	abstract public function process_popup( $popup_id = 0 );
-
 }

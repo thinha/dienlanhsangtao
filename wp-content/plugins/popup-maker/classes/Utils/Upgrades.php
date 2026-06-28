@@ -1,7 +1,10 @@
 <?php
-/*******************************************************************************
- * Copyright (c) 2019, Code Atlantic LLC
- ******************************************************************************/
+/**
+ * Upgrades Utility
+ *
+ * @package   PopupMaker
+ * @copyright Copyright (c) 2024, Code Atlantic LLC
+ */
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -18,7 +21,7 @@ class PUM_Utils_Upgrades {
 	protected $registry;
 
 	/**
-	 * @var self
+	 * @var self|null
 	 */
 	public static $instance;
 
@@ -46,7 +49,7 @@ class PUM_Utils_Upgrades {
 	/**
 	 * Popup Maker db version.
 	 *
-	 * @var    string
+	 * @var    string|false
 	 */
 	public static $db_version;
 
@@ -74,152 +77,83 @@ class PUM_Utils_Upgrades {
 	 * Sets up the Upgrades class instance.
 	 */
 	public function __construct() {
-		// Update stored plugin version info.
-		self::update_plugin_version();
+		// Here for backwards compatibility. Now using common API.
+		self::$version         = \PopupMaker\get_current_install_info( 'version' );
+		self::$installed_on    = \PopupMaker\get_current_install_info( 'installed_on' );
+		self::$initial_version = \PopupMaker\get_current_install_info( 'initial_version' );
+		self::$upgraded_from   = \PopupMaker\get_current_install_info( 'upgraded_from' );
+		self::$db_version      = get_option( 'pum_db_ver' );
+
+		// TODO When we refactor data migrations, this will be removed.
+		// If no current db version, but prior install detected, set db version correctly.
+		// Here for backward compatibility.
+		if ( ! self::$db_version || self::$db_version < Popup_Maker::$DB_VER ) {
+			self::$db_version = (string) Popup_Maker::$DB_VER;
+			update_option( 'pum_db_ver', self::$db_version );
+		}
 
 		// Render upgrade admin notices.
-		add_filter( 'pum_alert_list', array( $this, 'upgrade_alert' ) );
+		add_filter( 'pum_alert_list', [ $this, 'upgrade_alert' ] );
 		// Add Upgrade tab to Tools page when upgrades available.
-		add_filter( 'pum_tools_tabs', array( $this, 'tools_page_tabs' ) );
+		add_filter( 'pum_tools_tabs', [ $this, 'tools_page_tabs' ] );
 		// Render tools page upgrade tab content.
-		add_action( 'pum_tools_page_tab_upgrades', array( $this, 'tools_page_tab_content' ) );
+		add_action( 'pum_tools_page_tab_upgrades', [ $this, 'tools_page_tab_content' ] );
 		// Ajax upgrade handler.
-		add_action( 'wp_ajax_pum_process_upgrade_request', array( $this, 'process_upgrade_request' ) );
+		add_action( 'wp_ajax_pum_process_upgrade_request', [ $this, 'process_upgrade_request' ] );
 		// Register core upgrades.
-		add_action( 'pum_register_upgrades', array( $this, 'register_processes' ) );
+		add_action( 'pum_register_upgrades', [ $this, 'register_processes' ] );
 
 		// Initiate the upgrade registry. Must be done after versions update for proper comparisons.
 		$this->registry = PUM_Upgrade_Registry::instance();
 	}
 
 	/**
-	 * Update version info.
-	 */
-	public static function update_plugin_version() {
-		self::$version         = get_option( 'pum_ver' );
-		self::$upgraded_from   = get_option( 'pum_ver_upgraded_from' );
-		self::$initial_version = get_option( 'pum_initial_version' );
-		self::$db_version      = get_option( 'pum_db_ver' );
-		self::$installed_on    = get_option( 'pum_installed_on' );
-
-		/**
-		 * If no version set check if a deprecated one exists.
-		 */
-		if ( empty( self::$version ) ) {
-			$deprecated_ver = get_site_option( 'popmake_version' );
-
-			// set to the deprecated version or last version that didn't have the version option set
-			self::$version = $deprecated_ver ? $deprecated_ver : Popup_Maker::$VER; // Since we had versioning in v1 if there isn't one stored its a new install.
-
-			update_option( 'pum_ver', self::$version );
-		}
-
-		/**
-		 * Back fill the initial version with the oldest version we can detect.
-		 */
-		if ( ! self::$initial_version ) {
-
-			$oldest_known = Popup_Maker::$VER;
-
-			if ( self::$version && version_compare( self::$version, $oldest_known, '<' ) ) {
-				$oldest_known = self::$version;
-			}
-
-			if ( self::$upgraded_from && version_compare( self::$upgraded_from, $oldest_known, '<' ) ) {
-				$oldest_known = self::$upgraded_from;
-			}
-
-			$deprecated_ver = get_site_option( 'popmake_version' );
-			if ( $deprecated_ver && version_compare( $deprecated_ver, $oldest_known, '<' ) ) {
-				$oldest_known = $deprecated_ver;
-			}
-
-			$dep_upgraded_from = get_option( 'popmake_version_upgraded_from' );
-			if ( $dep_upgraded_from && version_compare( $dep_upgraded_from, $oldest_known, '<' ) ) {
-				$oldest_known = $dep_upgraded_from;
-			}
-
-			self::$initial_version = $oldest_known;
-
-			// Only set this value if it doesn't exist.
-			update_option( 'pum_initial_version', $oldest_known );
-		}
-
-		if ( version_compare( self::$version, Popup_Maker::$VER, '<' ) ) {
-			// Allow processing of small core upgrades
-			do_action( 'pum_update_core_version', self::$version );
-
-			// Save Upgraded From option
-			update_option( 'pum_ver_upgraded_from', self::$version );
-			update_option( 'pum_ver', Popup_Maker::$VER );
-			self::$upgraded_from = self::$version;
-			self::$version       = Popup_Maker::$VER;
-
-			// Reset JS/CSS assets for regeneration.
-			pum_reset_assets();
-		} else if ( ! self::$upgraded_from || self::$upgraded_from === 'false' ) {
-			// Here to prevent constant extra queries.
-			self::$upgraded_from = '0.0.0';
-			update_option( 'pum_ver_upgraded_from', self::$upgraded_from );
-		}
-
-		// If no current db version, but prior install detected, set db version correctly.
-		// Here for backward compatibility.
-		if ( ! self::$db_version || self::$db_version < Popup_Maker::$DB_VER ) {
-			self::$db_version = Popup_Maker::$DB_VER;
-			update_option( 'pum_db_ver', self::$db_version );
-		}
-
-		/**
-		 * Back fill the initial version with the oldest version we can detect.
-		 */
-		if ( ! self::$installed_on ) {
-			$installed_on = current_time( 'mysql' );
-
-			$review_installed_on = get_option( 'pum_reviews_installed_on' );
-			if ( ! empty( $review_installed_on ) ) {
-				$installed_on = $review_installed_on;
-			}
-
-			self::$installed_on = $installed_on;
-
-			update_option( 'pum_installed_on', self::$installed_on );
-		}
-	}
-
-	/**
-	 * @param PUM_Upgrade_Registry $registry
+	 * Register core upgrade processes.
+	 *
+	 * @param PUM_Upgrade_Registry $registry The upgrade registry instance.
+	 * @return void
 	 */
 	public function register_processes( PUM_Upgrade_Registry $registry ) {
 
 		// v1.7 Upgrades
-		$registry->add_upgrade( 'core-v1_7-popups', array(
-			'rules' => array(
-				version_compare( self::$initial_version, '1.7', '<' ),
-			),
-			'class' => 'PUM_Upgrade_v1_7_Popups',
-			'file'  => Popup_Maker::$DIR . 'includes/batch/upgrade/class-upgrade-v1_7-popups.php',
-		) );
+		$registry->add_upgrade(
+			'core-v1_7-popups',
+			[
+				'rules' => [
+					version_compare( self::$initial_version, '1.7', '<' ),
+				],
+				'class' => 'PUM_Upgrade_v1_7_Popups',
+				'file'  => Popup_Maker::$DIR . 'includes/batch/upgrade/class-upgrade-v1_7-popups.php',
+			]
+		);
 
-		$registry->add_upgrade( 'core-v1_7-settings', array(
-			'rules' => array(
-				version_compare( self::$initial_version, '1.7', '<' ),
-			),
-			'class' => 'PUM_Upgrade_v1_7_Settings',
-			'file'  => Popup_Maker::$DIR . 'includes/batch/upgrade/class-upgrade-v1_7-settings.php',
-		) );
+		$registry->add_upgrade(
+			'core-v1_7-settings',
+			[
+				'rules' => [
+					version_compare( self::$initial_version, '1.7', '<' ),
+				],
+				'class' => 'PUM_Upgrade_v1_7_Settings',
+				'file'  => Popup_Maker::$DIR . 'includes/batch/upgrade/class-upgrade-v1_7-settings.php',
+			]
+		);
 
-		$registry->add_upgrade( 'core-v1_8-themes', array(
-			'rules' => array(
-				$this->needs_v1_8_theme_upgrade(),
-			),
-			'class' => 'PUM_Upgrade_v1_8_Themes',
-			'file'  => Popup_Maker::$DIR . 'includes/batch/upgrade/class-upgrade-v1_8-themes.php',
-		) );
+		$registry->add_upgrade(
+			'core-v1_8-themes',
+			[
+				'rules' => [
+					$this->needs_v1_8_theme_upgrade(),
+				],
+				'class' => 'PUM_Upgrade_v1_8_Themes',
+				'file'  => Popup_Maker::$DIR . 'includes/batch/upgrade/class-upgrade-v1_8-themes.php',
+			]
+		);
 	}
 
 	/**
-	 * @return bool
+	 * Check if v1.8 theme upgrade is needed.
+	 *
+	 * @return bool True if upgrade is needed, false otherwise.
 	 */
 	public function needs_v1_8_theme_upgrade() {
 		if ( pum_has_completed_upgrade( 'core-v1_8-themes' ) ) {
@@ -228,25 +162,28 @@ class PUM_Utils_Upgrades {
 
 		$needs_upgrade = get_transient( 'pum_needs_1_8_theme_upgrades' );
 
-		if ( $needs_upgrade === false ) {
-			$query = new WP_Query( array(
-				'post_type'  => 'popup_theme',
-				'post_status' => 'any',
-				'fields'     => 'ids',
-				'meta_query' => array(
-					'relation' => 'OR',
-					array(
-						'key'     => 'popup_theme_data_version',
-						'compare' => 'NOT EXISTS',
-						'value'   => 'deprecated', // Here for WP 3.9 or less.
-					),
-					array(
-						'key'     => 'popup_theme_data_version',
-						'compare' => '<',
-						'value'   => 3,
-					),
-				),
-			) );
+		if ( false === $needs_upgrade ) {
+			$query = new WP_Query(
+				[
+					'post_type'   => 'popup_theme',
+					'post_status' => 'any',
+					'fields'      => 'ids',
+					// phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query
+					'meta_query'  => [
+						'relation' => 'OR',
+						[
+							'key'     => 'popup_theme_data_version',
+							'compare' => 'NOT EXISTS',
+							'value'   => 'deprecated', // Here for WP 3.9 or less.
+						],
+						[
+							'key'     => 'popup_theme_data_version',
+							'compare' => '<',
+							'value'   => 3,
+						],
+					],
+				]
+			);
 
 			$needs_upgrade = $query->post_count;
 		}
@@ -261,19 +198,16 @@ class PUM_Utils_Upgrades {
 		set_transient( 'pum_needs_1_8_theme_upgrades', $needs_upgrade );
 
 		return (bool) $needs_upgrade;
-
 	}
 
 	/**
 	 * Registers a new upgrade routine.
 	 *
 	 * @param string $upgrade_id Upgrade ID.
-	 * @param array  $args       {
-	 *                           Arguments for registering a new upgrade routine.
-	 *
-	 * @type array   $rules      Array of true/false values.
-	 * @type string  $class      Batch processor class to use.
-	 * @type string  $file       File containing the upgrade processor class.
+	 * @param array  $args Arguments for registering a new upgrade routine. {
+	 *     @type bool[] $rules Upgrade rules.
+	 *     @type string $class Upgrade class name.
+	 *     @type string $file  Upgrade file path.
 	 * }
 	 *
 	 * @return bool True if the upgrade routine was added, otherwise false.
@@ -284,6 +218,8 @@ class PUM_Utils_Upgrades {
 
 	/**
 	 * Displays upgrade notices.
+	 *
+	 * @return void
 	 */
 	public function upgrade_notices() {
 		if ( ! $this->has_uncomplete_upgrades() || ! current_user_can( 'manage_options' ) ) {
@@ -303,11 +239,27 @@ class PUM_Utils_Upgrades {
 
 
 	/**
-	 * @param array $alerts
+	 * Add upgrade alert to the alerts list.
 	 *
-	 * @return array
+	 * @param array $alerts Current alerts list. {
+	 *     @type string $code        Alert code.
+	 *     @type string $type        Alert type.
+	 *     @type string $html        Alert HTML.
+	 *     @type int    $priority    Alert priority.
+	 *     @type bool   $dismissible Dismissible setting.
+	 *     @type bool   $global      Global alert.
+	 * }
+	 *
+	 * @return array<int, array{
+	 *     code: string,
+	 *     type: string,
+	 *     html: string,
+	 *     priority: int,
+	 *     dismissible: bool,
+	 *     global: bool
+	 * }> Updated alerts list.
 	 */
-	public function upgrade_alert( $alerts = array() ) {
+	public function upgrade_alert( $alerts = [] ) {
 		if ( ! $this->has_uncomplete_upgrades() || ! current_user_can( 'manage_options' ) ) {
 			return $alerts;
 		}
@@ -321,14 +273,14 @@ class PUM_Utils_Upgrades {
 		$this->render_form();
 		$html = ob_get_clean();
 
-		$alerts[] = array(
+		$alerts[] = [
 			'code'        => 'upgrades_required',
 			'type'        => 'warning',
 			'html'        => $html,
 			'priority'    => 1000,
 			'dismissible' => false,
 			'global'      => true,
-		);
+		];
 
 		return $alerts;
 	}
@@ -337,41 +289,49 @@ class PUM_Utils_Upgrades {
 	 * Renders the upgrade notification message.
 	 *
 	 * Message only, no form.
+	 *
+	 * @return void
 	 */
 	public function render_upgrade_notice() {
-		$resume_upgrade = $this->maybe_resume_upgrade(); ?>
+		$resume_upgrade = $this->maybe_resume_upgrade();
+		?>
 		<p class="pum-upgrade-notice">
 			<?php
-			if ( empty( $resume_upgrade ) ) { ?>
-				<strong><?php _e( 'The latest version of Popup Maker requires changes to the Popup Maker settings saved on your site.', 'popup-maker' ); ?></strong>
+			if ( empty( $resume_upgrade ) ) {
+				?>
+				<strong><?php esc_html_e( 'The latest version of Popup Maker requires changes to the Popup Maker settings saved on your site.', 'popup-maker' ); ?></strong>
 				<?php
 			} else {
-				_e( 'Popup Maker needs to complete a the update of your settings that was previously started.', 'popup-maker' );
-			} ?>
+				esc_html_e( 'Popup Maker needs to complete a the update of your settings that was previously started.', 'popup-maker' );
+			}
+			?>
 		</p>
 		<?php
 	}
 
 	/**
 	 * Renders the upgrade processing form for reuse.
+	 *
+	 * @return void
 	 */
 	public function render_form() {
-		$args = array(
+		$args = [
 			'upgrade_id' => $this->get_current_upgrade_id(),
 			'step'       => 1,
-		);
+		];
 
 		$resume_upgrade = $this->maybe_resume_upgrade();
 
 		if ( $resume_upgrade && is_array( $resume_upgrade ) ) {
 			$args = wp_parse_args( $resume_upgrade, $args );
-		} ?>
+		}
+		?>
 
-		<form method="post" class="pum-form  pum-batch-form  pum-upgrade-form" data-ays="<?php _e( 'This can sometimes take a few minutes, are you ready to begin?', 'popup-maker' ); ?>" data-upgrade_id="<?php echo $args['upgrade_id']; ?>" data-step="<?php echo (int) $args['step']; ?>" data-nonce="<?php echo esc_attr( wp_create_nonce( 'pum_upgrade_ajax_nonce' ) ); ?>">
+		<form method="post" class="pum-form  pum-batch-form  pum-upgrade-form" data-ays="<?php esc_attr_e( 'This can sometimes take a few minutes, are you ready to begin?', 'popup-maker' ); ?>" data-upgrade_id="<?php echo esc_attr( $args['upgrade_id'] ); ?>" data-step="<?php echo (int) $args['step']; ?>" data-nonce="<?php echo esc_attr( wp_create_nonce( 'pum_upgrade_ajax_nonce' ) ); ?>">
 
 			<div class="pum-field  pum-field-button  pum-field-submit">
 				<p>
-					<small><?php _e( 'The button below will process these changes automatically for you.', 'popup-maker' ); ?></small>
+					<small><?php esc_html_e( 'The button below will process these changes automatically for you.', 'popup-maker' ); ?></small>
 				</p>
 				<?php submit_button( ! empty( $resume_upgrade ) ? __( 'Finish Upgrades', 'popup-maker' ) : __( 'Process Changes', 'popup-maker' ), 'secondary', 'submit', false ); ?>
 			</div>
@@ -393,12 +353,17 @@ class PUM_Utils_Upgrades {
 	}
 
 	/**
-	 * For use when doing 'stepped' upgrade routines, to see if we need to start somewhere in the middle
+	 * Check if there's a partial upgrade that needs to be resumed.
 	 *
-	 * @return false|array   When nothing to resume returns false, otherwise starts the upgrade where it left off
+	 * For use when doing 'stepped' upgrade routines, to see if we need to start somewhere in the middle.
+	 *
+	 * @return array{
+	 *     upgrade_id: string,
+	 *     step: int
+	 * }|false When nothing to resume returns false, otherwise returns upgrade state data.
 	 */
 	public function maybe_resume_upgrade() {
-		$doing_upgrade = get_option( 'pum_doing_upgrade', array() );
+		$doing_upgrade = get_option( 'pum_doing_upgrade', [] );
 
 		if ( empty( $doing_upgrade ) ) {
 			return false;
@@ -412,7 +377,11 @@ class PUM_Utils_Upgrades {
 	 *
 	 * @param string $upgrade_id Upgrade ID.
 	 *
-	 * @return array|false Upgrade entry from the registry, otherwise false.
+	 * @return array{
+	 *     rules: bool[],
+	 *     class: string,
+	 *     file: string
+	 * }|false Upgrade entry from the registry, otherwise false.
 	 */
 	public function get_routine( $upgrade_id ) {
 		return $this->registry->get( $upgrade_id );
@@ -423,18 +392,22 @@ class PUM_Utils_Upgrades {
 	 *
 	 * Note: Unfiltered.
 	 *
-	 * @return array
+	 * @return array<string, array{
+	 *     rules: bool[],
+	 *     class: string,
+	 *     file: string
+	 * }> Associative array of upgrade ID => upgrade data.
 	 */
 	public function get_routines() {
 		return $this->registry->get_upgrades();
 	}
 
 	/**
-	 * Adds an upgrade action to the completed upgrades array
+	 * Adds an upgrade action to the completed upgrades array.
 	 *
-	 * @param  string $upgrade_id The action to add to the competed upgrades array
+	 * @param string $upgrade_id The action to add to the completed upgrades array.
 	 *
-	 * @return bool If the function was successfully added
+	 * @return bool True if the upgrade was successfully marked complete, false otherwise.
 	 */
 	public function set_upgrade_complete( $upgrade_id = '' ) {
 
@@ -444,7 +417,7 @@ class PUM_Utils_Upgrades {
 
 		$completed_upgrades = $this->get_completed_upgrades();
 
-		if ( ! in_array( $upgrade_id, $completed_upgrades ) ) {
+		if ( ! in_array( $upgrade_id, $completed_upgrades, true ) ) {
 			$completed_upgrades[] = $upgrade_id;
 
 			do_action( 'pum_set_upgrade_complete', $upgrade_id );
@@ -457,27 +430,27 @@ class PUM_Utils_Upgrades {
 	}
 
 	/**
-	 * Get's the array of completed upgrade actions
+	 * Get's the array of completed upgrade actions.
 	 *
-	 * @return array The array of completed upgrades
+	 * @return array<int, string> The array of completed upgrade IDs.
 	 */
 	public function get_completed_upgrades() {
 		$completed_upgrades = get_option( 'pum_completed_upgrades' );
 
-		if ( $completed_upgrades === false ) {
-			$completed_upgrades = array();
+		if ( false === $completed_upgrades ) {
+			$completed_upgrades = [];
 			update_option( 'pum_completed_upgrades', $completed_upgrades );
 		}
 
-		return get_option( 'pum_completed_upgrades', array() );
+		return get_option( 'pum_completed_upgrades', [] );
 	}
 
 	/**
-	 * Check if the upgrade routine has been run for a specific action
+	 * Check if the upgrade routine has been run for a specific action.
 	 *
-	 * @param string $upgrade_id The upgrade action to check completion for
+	 * @param string $upgrade_id The upgrade action to check completion for.
 	 *
-	 * @return bool If the action has been added to the completed actions array
+	 * @return bool True if the action has been completed, false otherwise.
 	 */
 	public function has_completed_upgrade( $upgrade_id = '' ) {
 		if ( empty( $upgrade_id ) ) {
@@ -490,9 +463,9 @@ class PUM_Utils_Upgrades {
 	}
 
 	/**
-	 * Conditional function to see if there are upgrades available.
+	 * Check if there are uncompleted upgrades available.
 	 *
-	 * @return bool
+	 * @return bool True if upgrades are needed, false otherwise.
 	 */
 	public function has_uncomplete_upgrades() {
 		return (bool) count( $this->get_uncompleted_upgrades() );
@@ -505,7 +478,11 @@ class PUM_Utils_Upgrades {
 	 * - It was previously complete.
 	 * - If any false values in the upgrades $rules array are found.
 	 *
-	 * @return array
+	 * @return array<string, array{
+	 *     rules: bool[],
+	 *     class: string,
+	 *     file: string
+	 * }> Associative array of upgrade ID => upgrade data.
 	 */
 	public function get_uncompleted_upgrades() {
 		$required_upgrades = $this->get_routines();
@@ -521,23 +498,29 @@ class PUM_Utils_Upgrades {
 	}
 
 	/**
-	 * Handles Ajax for processing a upgrade upgrade/que request.
+	 * Handles Ajax for processing an upgrade request.
+	 *
+	 * @return void
 	 */
 	public function process_upgrade_request() {
 
 		$upgrade_id = isset( $_REQUEST['upgrade_id'] ) ? sanitize_key( $_REQUEST['upgrade_id'] ) : false;
 
 		if ( ! $upgrade_id && ! $this->has_uncomplete_upgrades() ) {
-			wp_send_json_error( array(
-				'error' => __( 'A batch process ID must be present to continue.', 'popup-maker' ),
-			) );
+			wp_send_json_error(
+				[
+					'error' => __( 'A batch process ID must be present to continue.', 'popup-maker' ),
+				]
+			);
 		}
 
 		// Nonce.
 		if ( ! check_ajax_referer( 'pum_upgrade_ajax_nonce', 'nonce' ) ) {
-			wp_send_json_error( array(
-				'error' => __( 'You do not have permission to initiate this request. Contact an administrator for more information.', 'popup-maker' ),
-			) );
+			wp_send_json_error(
+				[
+					'error' => __( 'You do not have permission to initiate this request. Contact an administrator for more information.', 'popup-maker' ),
+				]
+			);
 		}
 
 		if ( ! $upgrade_id ) {
@@ -553,10 +536,16 @@ class PUM_Utils_Upgrades {
 		 */
 		$upgrade = $this->get_upgrade( $upgrade_id, $step );
 
-		if ( $upgrade === false ) {
-			wp_send_json_error( array(
-				'error' => sprintf( __( '%s is an invalid batch process ID.', 'popup-maker' ), esc_html( $upgrade_id ) ),
-			) );
+		if ( false === $upgrade ) {
+			wp_send_json_error(
+				[
+					'error' => sprintf(
+						/* translators: 1: Batch process ID. */
+						__( '%s is an invalid batch process ID.', 'popup-maker' ),
+						esc_html( $upgrade_id )
+					),
+				]
+			);
 		}
 
 		/**
@@ -574,7 +563,7 @@ class PUM_Utils_Upgrades {
 		// Handle pre-fetching data.
 		if ( $using_prefetch ) {
 			// Initialize any data needed to process a step.
-			$data = isset( $_REQUEST['form'] ) ? $_REQUEST['form'] : array();
+			$data = isset( $_REQUEST['form'] ) ? sanitize_key( $_REQUEST['form'] ) : [];
 
 			$upgrade->init( $data );
 			$upgrade->pre_fetch();
@@ -584,10 +573,10 @@ class PUM_Utils_Upgrades {
 		$step = $upgrade->process_step();
 
 		if ( ! is_wp_error( $step ) ) {
-			$response_data = array(
+			$response_data = [
 				'step' => $step,
 				'next' => null,
-			);
+			];
 
 			// Finish and set the status flag if done.
 			if ( 'done' === $step ) {
@@ -619,7 +608,7 @@ class PUM_Utils_Upgrades {
 	/**
 	 * Returns the first key in the uncompleted upgrades.
 	 *
-	 * @return string|null
+	 * @return string|null The upgrade ID or null if no upgrades pending.
 	 */
 	public function get_current_upgrade_id() {
 		$upgrades = $this->get_uncompleted_upgrades();
@@ -630,9 +619,9 @@ class PUM_Utils_Upgrades {
 	}
 
 	/**
-	 * Returns the current upgrade.
+	 * Returns the current upgrade processor instance.
 	 *
-	 * @return bool|PUM_Interface_Batch_PrefetchProcess|PUM_Interface_Batch_Process
+	 * @return PUM_Interface_Batch_Process|PUM_Interface_Batch_PrefetchProcess|false False if no upgrade found.
 	 */
 	public function get_current_upgrade() {
 		$upgrade_id = $this->get_current_upgrade_id();
@@ -643,10 +632,10 @@ class PUM_Utils_Upgrades {
 	/**
 	 * Gets the upgrade process object.
 	 *
-	 * @param string $upgrade_id
-	 * @param int    $step
+	 * @param string $upgrade_id The upgrade identifier.
+	 * @param int    $step       The current step number.
 	 *
-	 * @return bool|PUM_Interface_Batch_Process|PUM_Interface_Batch_PrefetchProcess
+	 * @return PUM_Interface_Batch_Process|PUM_Interface_Batch_PrefetchProcess|false The upgrade processor instance or false if not found.
 	 */
 	public function get_upgrade( $upgrade_id = '', $step = 1 ) {
 		$upgrade = $this->registry->get( $upgrade_id );
@@ -661,15 +650,28 @@ class PUM_Utils_Upgrades {
 		if ( ! class_exists( $class ) && ! empty( $class_file ) && file_exists( $class_file ) ) {
 			require_once $class_file;
 		} else {
-			wp_send_json_error( array(
-				'error' => sprintf( __( 'An invalid file path is registered for the %1$s batch process handler.', 'popup-maker' ), "<code>{$upgrade_id}</code>" ),
-			) );
+			wp_send_json_error(
+				[
+					'error' => sprintf(
+						/* translators: 1: Batch process ID. */
+						__( 'An invalid file path is registered for the %1$s batch process handler.', 'popup-maker' ),
+						"<code>{$upgrade_id}</code>"
+					),
+				]
+			);
 		}
 
 		if ( empty( $class ) || ! class_exists( $class ) ) {
-			wp_send_json_error( array(
-				'error' => sprintf( __( '%1$s is an invalid handler for the %2$s batch process. Please try again.', 'popup-maker' ), "<code>{$class}</code>", "<code>{$upgrade_id}</code>" ),
-			) );
+			wp_send_json_error(
+				[
+					'error' => sprintf(
+						/* translators: 1: Class name, 2: Batch process ID. */
+						__( '%1$s is an invalid handler for the %2$s batch process. Please try again.', 'popup-maker' ),
+						"<code>{$class}</code>",
+						"<code>{$upgrade_id}</code>"
+					),
+				]
+			);
 		}
 
 		/**
@@ -681,11 +683,11 @@ class PUM_Utils_Upgrades {
 	/**
 	 * Add upgrades tab to tools page if there are upgrades available.
 	 *
-	 * @param array $tabs
+	 * @param array<string, string> $tabs Existing tabs array where key is tab ID and value is tab label.
 	 *
-	 * @return array
+	 * @return array<string, string> Updated tabs array.
 	 */
-	public function tools_page_tabs( $tabs = array() ) {
+	public function tools_page_tabs( $tabs = [] ) {
 
 		if ( $this->has_uncomplete_upgrades() ) {
 			$tabs['upgrades'] = __( 'Upgrades', 'popup-maker' );
@@ -696,10 +698,12 @@ class PUM_Utils_Upgrades {
 
 	/**
 	 * Renders upgrade form on the tools page upgrade tab.
+	 *
+	 * @return void
 	 */
 	public function tools_page_tab_content() {
 		if ( ! $this->has_uncomplete_upgrades() ) {
-			_e( 'No upgrades currently required.', 'popup-maker' );
+			esc_html_e( 'No upgrades currently required.', 'popup-maker' );
 
 			return;
 		}

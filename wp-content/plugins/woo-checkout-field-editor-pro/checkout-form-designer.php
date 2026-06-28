@@ -3,13 +3,14 @@
  * Plugin Name: Checkout Field Editor for WooCommerce
  * Description: Customize WooCommerce checkout fields(Add, Edit, Delete and re-arrange fields).
  * Author:      ThemeHigh
- * Version:     1.4.4
+ * Version:     2.1.9
  * Author URI:  https://www.themehigh.com
  * Plugin URI:  https://www.themehigh.com
+ * License:     GPLv2 or later
  * Text Domain: woo-checkout-field-editor-pro
  * Domain Path: /languages
  * WC requires at least: 3.0.0
- * WC tested up to: 4.5.2
+ * WC tested up to: 10.8
  */
  
 if(!defined( 'ABSPATH' )) exit;
@@ -25,16 +26,33 @@ if (!function_exists('is_woocommerce_active')){
 }
 
 if(is_woocommerce_active()) {
-	define('THWCFD_VERSION', '1.4.4');
+	define('THWCFD_VERSION', '2.1.9');
 	!defined('THWCFD_BASE_NAME') && define('THWCFD_BASE_NAME', plugin_basename( __FILE__ ));
 	!defined('THWCFD_PATH') && define('THWCFD_PATH', plugin_dir_path( __FILE__ ));
 	!defined('THWCFD_URL') && define('THWCFD_URL', plugins_url( '/', __FILE__ ));
-	!defined('THWCFD_ASSETS_URL') && define('THWCFD_ASSETS_URL', THWCFD_URL .'assets/');
+	!defined('THWCFD_ABSPATH' ) && define( 'THWCFD_ABSPATH', __DIR__ );
 
-	require THWCFD_PATH . 'classes/class-thwcfd.php';
+	#require THWCFD_PATH . 'classes/class-thwcfd.php';
+	require plugin_dir_path( __FILE__ ) . 'includes/class-thwcfd.php';
 
 	function run_thwcfd() {
 		$plugin = new THWCFD();
 	}
 	run_thwcfd();
+}
+
+if( ! function_exists( 'activate_thwcfd' ) ) {
+	function activate_thwcfd($network_wide) {
+		require_once plugin_dir_path( __FILE__ ) . 'includes/class-thwcfd-activator.php';
+		THWCFD_Activator::activate($network_wide);
+	}
+}
+register_activation_hook( __FILE__, 'activate_thwcfd' );
+
+add_action( 'before_woocommerce_init', 'thwcfd_before_woocommerce_init_hpos' ) ;
+
+function thwcfd_before_woocommerce_init_hpos() {
+	if ( class_exists( '\Automattic\WooCommerce\Utilities\FeaturesUtil' ) ) {
+		\Automattic\WooCommerce\Utilities\FeaturesUtil::declare_compatibility( 'custom_order_tables', __FILE__, true );
+	}
 }

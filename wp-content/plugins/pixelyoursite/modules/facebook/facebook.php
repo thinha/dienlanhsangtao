@@ -8,7 +8,6 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 /** @noinspection PhpIncludeInspection */
 require_once PYS_FREE_PATH . '/modules/facebook/function-helpers.php';
-require_once PYS_FREE_PATH . '/modules/facebook/FDPEvent.php';
 
 
 
@@ -21,7 +20,8 @@ class Facebook extends Settings implements Pixel {
 	private static $_instance;
 	
 	private $configured;
-	
+
+    private $moduleName = 'Facebook';
 	public static function instance() {
 		
 		if ( is_null( self::$_instance ) ) {
@@ -46,16 +46,19 @@ class Facebook extends Settings implements Pixel {
 
 	    	$core->registerPixel( $this );
 	    } );
+        add_filter('pys_facebook_settings_sanitize_verify_meta_tag_field', array($this, 'sanitize_verify_meta_tag_field'));
         add_action( 'wp_head', array( $this, 'output_meta_tag' ) );
-
     }
 
+    public function getModuleName()
+    {
+        return $this->moduleName;
+    }
 
-    
     public function enabled() {
 	    return $this->getOption( 'enabled' );
     }
-	
+
 	public function configured() {
 		
 		if ( $this->configured === null ) {
@@ -81,24 +84,20 @@ class Facebook extends Settings implements Pixel {
 			return apply_filters("pys_facebook_ids", array($id)); // return first id only
         }
 	}
-	
+
 	public function getPixelOptions() {
-		
 		return array(
-			'pixelIds'            => $this->getPixelIDs(),
-			'advancedMatching'    => $this->getOption( 'advanced_matching_enabled' ) ? Helpers\getAdvancedMatchingParams() : array(),
-            'advancedMatchingEnabled'   => $this->getOption( 'advanced_matching_enabled' ),
-            'removeMetadata'      => $this->getOption( 'remove_metadata' ),
-			'contentParams'       => getTheContentParams(),
-			'commentEventEnabled' => $this->getOption( 'comment_event_enabled' ),
-			'wooVariableAsSimple' => $this->getOption( 'woo_variable_as_simple' ),
-            'downloadEnabled' => $this->getOption( 'download_event_enabled' ),
-            'formEventEnabled' => $this->getOption( 'form_event_enabled' ),
-            'serverApiEnabled'    => $this->isServerApiEnabled() && count($this->getApiToken()) > 0,
-            'wooCRSendFromServer' => $this->getOption("woo_complete_registration_send_from_server") && $this->getOption("woo_complete_registration_fire_every_time"),
-		    'send_external_id'          => $this->getOption('send_external_id')
-        );
-		
+			'pixelIds'                   => $this->getPixelIDs(),
+			'advancedMatching'           => $this->getOption( 'advanced_matching_enabled' ) ? Helpers\getAdvancedMatchingParams() : array(),
+			'advancedMatchingEnabled'    => $this->getOption( 'advanced_matching_enabled' ),
+			'removeMetadata'             => $this->getOption( 'remove_metadata' ),
+			'wooVariableAsSimple'        => $this->getOption( 'woo_variable_as_simple' ),
+			'serverApiEnabled'           => $this->isServerApiEnabled() && count( $this->getApiToken() ) > 0,
+			'send_external_id'           => $this->getOption( 'send_external_id' ),
+			'enabled_medical'            => $this->getOption( 'enabled_medical' ),
+			'do_not_track_medical_param' => $this->getOption( 'do_not_track_medical_param' ),
+			'meta_ldu'                   => $this->getLDUMode(),
+		);
 	}
 
     public function updateOptions( $values = null ) {
@@ -173,12 +172,8 @@ class Facebook extends Settings implements Pixel {
 
             //Automatic events
             case 'automatic_event_signup' : {
-                if(isWooCommerceActive() &&  Facebook()->getOption("woo_complete_registration_fire_every_time")) {
-                    $isActive = false;
-                } else {
-                    $event->addPayload(["name" => "CompleteRegistration"]);
-                    $isActive = $this->getOption($event->getId().'_enabled');
-                }
+                $event->addPayload(["name" => "CompleteRegistration"]);
+                $isActive = $this->getOption($event->getId().'_enabled');
             } break;
             case 'automatic_event_login' :{
                 $event->addPayload(["name" => "Login"]);
@@ -204,6 +199,7 @@ class Facebook extends Settings implements Pixel {
                 $eventData = $this->getPageViewEventParams();
                 if($eventData) {
                     $isActive = true;
+					$event->addPayload( [ "ajaxFire" => !Consent()->checkConsent( 'facebook' ) ] );
                     $this->addDataToEvent($eventData,$event);
                 }
             } break;
@@ -367,17 +363,6 @@ class Facebook extends Settings implements Pixel {
                     $this->addDataToEvent($eventData, $event);
                 }
             }break;
-            case 'woo_complete_registration': {
-                if( $this->getOption("woo_complete_registration_fire_every_time") ||
-                    get_user_meta( get_current_user_id(), 'pys_complete_registration', true )
-                ) {
-                    $eventData = $this->getWooCompleteRegistrationEventParams();
-                    if($eventData) {
-                        $isActive = true;
-                        $this->addDataToEvent($eventData,$event);
-                    }
-                }
-            }break;
 
             case 'woo_add_to_cart_on_button_click':{
                 if (  $this->getOption( 'woo_add_to_cart_enabled' ) && PYS()->getOption( 'woo_add_to_cart_on_button_click' ) ) {
@@ -385,6 +370,11 @@ class Facebook extends Settings implements Pixel {
                     if(isset($event->args['productId'])) {
                         $eventData =  $this->getWooAddToCartOnButtonClickEventParams( $event->args );
                         $event->addParams($eventData["params"]);
+                        if($eventData) {
+                            $event->addParams($eventData["params"]);
+                            unset($eventData["params"]);
+                            $event->addPayload($eventData);
+                        }
                     }
                     $event->addPayload(array(
                         'name'=>"AddToCart",
@@ -420,10 +410,11 @@ class Facebook extends Settings implements Pixel {
 
 	public function outputNoScriptEvents() {
 	 
-		if ( ! $this->configured() ) {
+		if ( ! $this->configured() || $this->getOption('disable_noscript')) {
 			return;
 		}
 
+		$ldu = $this->getLDUMode();
 		$eventsManager = PYS()->getEventsManager();
 
 		foreach ( $eventsManager->getStaticEvents( 'facebook' ) as $eventId => $events ) {
@@ -431,14 +422,22 @@ class Facebook extends Settings implements Pixel {
 			foreach ( $events as $event ) {
                 if( $event['name'] == "hCR") continue;
 				foreach ( $this->getPixelIDs() as $pixelID ) {
-
 					$args = array(
 						'id'       => $pixelID,
 						'ev'       => urlencode( $event['name'] ),
 						'noscript' => 1,
 					);
 
-					foreach ( $event['params'] as $param => $value ) {
+					$params = $event[ 'params' ];
+					if ( $ldu ) {
+						$params = array_merge( $params, array(
+							'vdpo'  => 'LDU',
+							'dpoco' => 0,
+							'dpost' => 0
+						) );
+					}
+
+					foreach ( $params as $param => $value ) {
                         if(is_array($value))
                             $value = json_encode($value);
 						@$args[ 'cd[' . $param . ']' ] = urlencode( $value );
@@ -460,132 +459,14 @@ class Facebook extends Settings implements Pixel {
 	
 	private function getPageViewEventParams() {
 	    $data = array();
+        $cpt = get_post_type();
+        if(!$cpt) return false;
 		return array(
 			'name'  => 'PageView',
 			'data'  => $data,
 		);
 
 	}
-
-	private function getGeneralEventParams() {
-
-		if ( ! $this->getOption( 'general_event_enabled' ) ) {
-			return false;
-		}
-
-		$eventName = PYS()->getOption( 'general_event_name' );
-		$eventName = sanitizeKey( $eventName );
-
-		if ( empty( $eventName ) ) {
-			$eventName = 'GeneralEvent';
-		}
-
-		$allowedContentTypes = array(
-			'on_posts_enabled'      => PYS()->getOption( 'general_event_on_posts_enabled' ),
-			'on_pages_enables'      => PYS()->getOption( 'general_event_on_pages_enabled' ),
-			'on_taxonomies_enabled' => PYS()->getOption( 'general_event_on_tax_enabled' ),
-			'on_cpt_enabled'        => PYS()->getOption( 'general_event_on_' . get_post_type() . '_enabled', false ),
-			'on_woo_enabled'        => PYS()->getOption( 'general_event_on_woo_enabled' ),
-			'on_edd_enabled'        => PYS()->getOption( 'general_event_on_edd_enabled' ),
-		);
-
-		$params = getTheContentParams( $allowedContentTypes );
-
-		return array(
-			'name'  => $eventName,
-			'data'  => $params,
-			'delay' => (int) PYS()->getOption( 'general_event_delay' ),
-		);
-
-	}
-
-
-
-    public function getFDPEvents() {
-        $events = array();
-        $contentType = $this->getOption("fdp_content_type");
-        if($this->getOption("fdp_view_content_enabled")) {
-            $event = new FDPEvent();
-            $event->event_name = "fdp_view_content";
-            $event->content_type = $contentType;
-            $events[] = $event;
-        }
-        if($this->getOption("fdp_view_category_enabled")) {
-            $event = new FDPEvent();
-            $event->event_name = "fdp_view_category";
-            $event->content_type = $contentType;
-            $events[] = $event;
-        }
-        if($this->getOption("fdp_add_to_cart_enabled")) {
-            $event = new FDPEvent();
-            $event->event_name = "fdp_add_to_cart";
-            $event->content_type = $contentType;
-            $event->trigger_type = "scroll_pos";
-            $event->trigger_value = $this->getOption("fdp_add_to_cart_event_fire_scroll");
-            $events[] = $event;
-        }
-        if($this->getOption("fdp_purchase_enabled")) {
-            $event = new FDPEvent();
-            $event->event_name = "fdp_purchase";
-            $event->content_type = $contentType;
-            $event->trigger_type = $this->getOption("fdp_purchase_event_fire");
-            if($event->trigger_type == "scroll_pos") {
-                $event->trigger_value = $this->getOption("fdp_purchase_event_fire_scroll");
-            }
-            if($event->trigger_type == "css_click") {
-                $event->trigger_value = $this->getOption("fdp_purchase_event_fire_css");
-            }
-
-            $events[] = $event;
-        }
-        return $events;
-    }
-
-    /**
-     * @param FDPEvent $event
-     * @return array
-     */
-
-    private function getFDPEventParams($event){
-
-        $name = "";
-        $params = "";
-
-        if($event->event_name == "fdp_view_content") {
-            $name = "ViewContent";
-            $params = Helpers\getFDPViewContentEventParams();
-        }
-
-        if($event->event_name == "fdp_view_category") {
-            $name = "ViewCategory";
-            $params = Helpers\getFDPViewCategoryEventParams();
-        }
-
-        if($event->event_name == "fdp_add_to_cart") {
-            $name = "AddToCart";
-            $params = Helpers\getFDPAddToCartEventParams();
-            $params["value"] = $this->getOption("fdp_add_to_cart_value");
-            $params["currency"] = $this->getOption("fdp_currency");
-        }
-
-        if($event->event_name == "fdp_purchase") {
-            $name = "Purchase";
-            $params = Helpers\getFDPPurchaseEventParams();
-            $params["value"] = $this->getOption("fdp_purchase_value");
-            $params["currency"] = $this->getOption("fdp_currency");
-        }
-
-
-        if($event->content_type) {
-            $params["content_type"] = $event->content_type;
-        }
-
-        return array(
-            'name'  => $name,
-            'data'  => $params,
-            'delay' => 0,
-        );
-    }
 
 	private function getWooViewContentEventParams() {
 		global $post;
@@ -812,7 +693,7 @@ class Facebook extends Settings implements Pixel {
         $cache_key = 'order_id_' . $order_key;
         $order_id = get_transient( $cache_key );
         global $wp;
-        if (is_order_received_page() && empty($order_id) && $wp->query_vars['order-received']) {
+        if (PYS()->woo_is_order_received_page() && empty($order_id) && $wp->query_vars['order-received']) {
 
             $order_id = absint( $wp->query_vars['order-received'] );
             if ($order_id) {
@@ -823,7 +704,8 @@ class Facebook extends Settings implements Pixel {
             $order_id = (int) wc_get_order_id_by_order_key( $order_key );
             set_transient( $cache_key, $order_id, HOUR_IN_SECONDS );
         }
-        $order    = new \WC_Order( $order_id );
+        $order    = wc_get_order( $order_id );
+        if(!$order) return false;
         
         $content_ids        = array();
         $content_names      = array();
@@ -1275,33 +1157,38 @@ class Facebook extends Settings implements Pixel {
         return $this->getOption("use_server_api");
     }
 
-
-
-    private function getWooCompleteRegistrationEventParams($args=null) {
-
-        if ( ! $this->getOption( 'complete_registration_event_enabled' ) ) {
-            return false;
-        }
-        $params = array();
-        if($this->getOption("woo_complete_registration_fire_every_time") &&
-            $this->getOption("woo_complete_registration_use_custom_value") &&
-            isset( $_REQUEST['key'] ) && $_REQUEST['key'] != "" ) {
-            $params = Helpers\getCompleteRegistrationOrderParams();
-        }
-        $name = isset($args) && $args == "hCR" ? "hCR" : 'CompleteRegistration';
-
-        return $params = array(
-            'name'  => $name,
-            'data'  => $params,
-        );
-
-    }
     function output_meta_tag() {
         $metaTags = (array) Facebook()->getOption( 'verify_meta_tag' );
         foreach ($metaTags as $tag) {
             echo $tag;
         }
     }
+    function sanitize_verify_meta_tag_field($values) {
+        $values = is_array( $values ) ? $values : array();
+        $sanitized = array();
+        $allowed_html = array(
+            'meta' => array(
+                'name' => array(),
+                'content' => array(),
+            ),
+        );
+        foreach ( $values as $key => $value ) {
+
+            $value = wp_kses($value, $allowed_html);
+            $new_value = $this->sanitize_textarea_field( $value );
+
+            if ( ! empty( $new_value ) && ! in_array( $new_value, $sanitized ) ) {
+                $sanitized[ $key ] = $new_value;
+            }
+
+        }
+
+        return $sanitized;
+    }
+
+	public function getLDUMode() {
+		return apply_filters( 'pys_meta_ldu_mode', false );
+	}
 }
 
 /**

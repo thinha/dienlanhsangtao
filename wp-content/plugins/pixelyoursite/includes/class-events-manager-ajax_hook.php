@@ -15,6 +15,7 @@ class AjaxHookEventManager {
         $events = WC()->session->get( 'pys_events', array() );
         $events[$name] = $event;
         WC()->session->set( 'pys_events', $events );
+        WC()->session->save_data();
     }
 
     /**
@@ -27,12 +28,12 @@ class AjaxHookEventManager {
             if(!WC()->session) return null;
             $session_data = WC()->session->get_session_data();
             $events = isset( $session_data['pys_events'] ) ? WC()->session->get( 'pys_events', array() ) : array();
-            PYS()->getLog()->debug('events hook called', $events);
             if (isset($events[$name])) {
                 $event = $events[$name];
                 if ($unset) {
                     unset($events[$name]);
                     WC()->session->set('pys_events', $events);
+                    WC()->session->save_data();
                 }
                 return $event;
             }
@@ -67,7 +68,6 @@ class AjaxHookEventManager {
                 && isEventEnabled('woo_add_to_cart_enabled')
             )
             {
-                add_action( 'woocommerce_after_add_to_cart_button', 'PixelYourSite\EventsManager::setupWooSingleProductData' );
                 if(PYS()->getOption('woo_add_to_cart_catch_method') == "add_cart_hook") {
                     add_action( 'wp_footer', array( __CLASS__, 'addDivForAjaxPixelEvent')  );
                     add_action( 'woocommerce_add_to_cart',array(__CLASS__, 'trackWooAddToCartEvent'),40, 6);
@@ -94,21 +94,28 @@ class AjaxHookEventManager {
         if(isset($cart_item_data['woosb_parent_id'])) return; // fix for WPC Product Bundles for WooCommerce (Premium) product
 
         $is_ajax_request = wp_doing_ajax();
-        if( isset( $_REQUEST['action'] ) && $_REQUEST['action'] == 'yith_wacp_add_item_cart') {
+        if( isset( $_REQUEST['action'] ) && $_REQUEST['action'] === 'yith_wacp_add_item_cart') {
             $is_ajax_request = true;
         }
-        $standardParams = getStandardParams();
 
-        PYS()->getLog()->debug('trackWooAddToCartEvent is_ajax_request '.$is_ajax_request);
+        $standardParams = getStandardParams( $product_id );
+
+        PYS()->getLog()->debug('trackWooAddToCartEvent is_hook_request '.$is_ajax_request);
         $dataList = [];
+        // Generate ONE shared eventID for the entire add-to-cart action so that
+        // all pixels receive the same ID for server-side deduplication.
+        $sharedEventId = EventIdGenerator::guidv4();
         foreach ( PYS()->getRegisteredPixels() as $pixel ) {
+
+			if ( !Consent()->checkConsent( $pixel->getSlug() ) ) {
+				continue;
+			}
 
             if( !empty($variation_id)
                 && $variation_id > 0
-                && ( !$pixel->getOption( 'woo_variable_as_simple' )
-                    || ( $pixel->getSlug() == "facebook"
-                        && !Facebook\Helpers\isDefaultWooContentIdLogic()
-                    )
+                && (($pixel->getSlug() === 'ga' && !GATags()->getOption( 'woo_variable_as_simple')) ||
+                    ($pixel->getSlug() === "facebook" && Facebook\Helpers\isDefaultWooContentIdLogic() && !Facebook()->getOption( 'woo_variable_as_simple') ) ||
+                    (!in_array($pixel->getSlug(), ['ga', 'facebook']) && !$pixel->getOption( 'woo_variable_as_simple' ))
                 )
             ) {
                 $_product_id = $variation_id;
@@ -119,39 +126,35 @@ class AjaxHookEventManager {
 
             $event = new SingleEvent('woo_add_to_cart_on_button_click',EventTypes::$STATIC,'woo');
             $event->args = ['productId' => $_product_id,'quantity' => $quantity];
+            $event->addPayload(['eventID' => $sharedEventId]);
             $events = $pixel->generateEvents( $event );
 
-            if ( count($events) == 0 ) {
+            if ( empty($events) ) {
                 continue; // event is disabled or not supported for the pixel
             }
             $event = $events[0];
 
             // add standard params
-            $event->addParams($standardParams);
+	        $slug = $pixel->getSlug();
+	        if( $slug !== "reddit" ) {
+		        $event->addParams($standardParams);
+	        }
 
             // prepare event data
             $eventData = $event->getData();
-            $eventData = EventsManager::filterEventParams($eventData,"woo");
+            $eventData = EventsManager::filterEventParams($eventData,"woo",['event_id'=>$event->getId(),'pixel'=>$pixel->getSlug()]);
 
             $dataList[$pixel->getSlug()] = $eventData;
-
-            if($pixel->getSlug() == "facebook" && Facebook()->isServerApiEnabled()) {
-
-                if($is_ajax_request) {
+            if(!PYS()->is_user_agent_bot()){
+                if($pixel->getSlug() === "facebook" && Facebook()->isServerApiEnabled()) {
                     FacebookServer()->sendEventsNow([$event]);
-                } else {
-                    FacebookServer()->sendEventsAsync([$event]);
+                }
+
+                if($pixel->getSlug() === "pinterest" && Pinterest()->isServerApiEnabled()) {
+                    PinterestServer()->sendEventsNow(array($event));
                 }
             }
 
-			if($pixel->getSlug() == "pinterest" && Pinterest()->isServerApiEnabled()) {
-
-				if($is_ajax_request) {
-					PinterestServer()->sendEventsNow(array($event));
-				} else {
-					PinterestServer()->sendEventsAsync(array($event));
-				}
-			}
         }
         AjaxHookEventManager::addPendingEvent("woo_add_to_cart_on_button_click",$dataList);
     }
@@ -225,13 +228,42 @@ class AjaxHookEventManager {
             var cartHash = "<?=WC()->cart->get_cart_hash()?>";
 
             if(pys_getCookie(name) != cartHash) { // prevent re send event if user update page
+                <?php
+                // Extract the shared eventID and unique e_id keys from PHP event data (set once
+                // in trackWooAddToCartEvent before the pixel loop, so all pixels carry the same UUID).
+                $sharedEventId = '';
+                $uniqueEIds    = [];
+                foreach ($pixelsEventData as $slug => $eventData) {
+                    if (empty($sharedEventId) && !empty($eventData['eventID'])) {
+                        $sharedEventId = $eventData['eventID'];
+                    }
+                    $eId = !empty($eventData['custom_event_post_id'])
+                            ? $eventData['custom_event_post_id']
+                            : ($eventData['e_id'] ?? '');
+                    if (!empty($eId) && !in_array($eId, $uniqueEIds, true)) {
+                        $uniqueEIds[] = $eId;
+                    }
+                }
+                ?>
+                // Use the PHP-generated shared eventID; fall back to a JS token if absent.
+                var pys_action_event_id = '<?= esc_js($sharedEventId) ?>' || pys_generate_token();
+
+                <?php if (!empty($uniqueEIds)) : ?>
+                // Sync the uniqueId cache once per event type so generateUniqueId()
+                // returns the same fresh ID even when ajaxForServerStaticEvent=true.
+                if (window.pys && window.pys.setEventUniqueId) {
+                    <?php foreach ($uniqueEIds as $eId) : ?>
+                    window.pys.setEventUniqueId('<?= esc_js($eId) ?>', pys_action_event_id);
+                    <?php endforeach; ?>
+                }
+                <?php endif; ?>
+
                 <?php foreach ($pixelsEventData as $slug => $eventData) : ?>
-
-                var pixel = getPixelBySlag('<?=$slug?>');
-                var event = <?=json_encode($eventData)?>;
-                pixel.fireEvent(event.name, event);
-
-                <?php  endforeach; ?>
+                    var pixel = getPixelBySlag('<?= $slug ?>');
+                    var event = <?= json_encode($eventData) ?>;
+                    event.eventID = pys_action_event_id;
+                    pixel.fireEvent(event.name, event);
+                <?php endforeach; ?>
                 pys_setCookie(name,cartHash,90)
             }
         </script>

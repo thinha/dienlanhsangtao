@@ -153,7 +153,7 @@ class ACF_Rest_Request {
 
 		// Determine query args passed within the URL.
 		foreach ( $this->supported_routes as $route ) {
-			$match = preg_match( '@^' . $route . '$@i', $this->current_route, $matches );
+			$match = preg_match( '@^' . $route . '$@i', (string) $this->current_route, $matches );
 			if ( ! $match ) {
 				continue;
 			}

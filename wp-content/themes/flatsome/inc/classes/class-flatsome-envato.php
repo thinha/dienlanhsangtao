@@ -29,6 +29,13 @@ final class Flatsome_Envato {
 	private $option_name;
 
 	/**
+	 * Theme slug used for admin pages.
+	 *
+	 * @var string
+	 */
+	private $slug;
+
+	/**
 	 * Main Flatsome_Envato instance
 	 *
 	 * @return Flatsome_Envato.

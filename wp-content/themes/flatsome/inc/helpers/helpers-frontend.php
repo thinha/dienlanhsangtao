@@ -28,7 +28,7 @@ function flatsome_html_atts( array $atts ) {
   $string = '';
   foreach ( $atts as $key => $value ) {
     if ( is_array( $value ) ) $value = implode( ' ', $value );
-    $string .= "${key}=\"${value}\" ";
+    $string .= "{$key}=\"{$value}\" ";
   }
   return $string;
 }
@@ -62,4 +62,26 @@ function flatsome_minify_css($css){
 function flatsome_dummy_text(){
 	$content = '<p><strong>This is a dummy text for demo purpose</strong>. Lorem ipsum dolor sit amet, consectetuer adipiscing elit, sed diam nonummy nibh euismod tincidunt ut laoreet dolore magna aliquam erat volutpat.</p><p> Duis autem vel eum iriure dolor in hendrerit in vulputate velit esse molestie consequat, vel illum dolore eu feugiat nulla facilisis at vero eros et accumsan et iusto odio dignissim qui blandit praesent luptatum zzril delenit augue duis dolore te feugait nulla facilisi.</p>';
 	return apply_filters( 'flatsome_dummy_text', $content );
+}
+
+/**
+ * Find a page by title (replacement for deprecated get_page_by_title).
+ *
+ * @param string $title Page title.
+ * @return WP_Post|null
+ */
+function flatsome_get_page_by_title( $title ) {
+	$pages = get_posts(
+		array(
+			'post_type'              => 'page',
+			'title'                  => $title,
+			'post_status'            => 'publish',
+			'posts_per_page'         => 1,
+			'no_found_rows'          => true,
+			'update_post_term_cache' => false,
+			'update_post_meta_cache' => false,
+		)
+	);
+
+	return ! empty( $pages ) ? $pages[0] : null;
 }

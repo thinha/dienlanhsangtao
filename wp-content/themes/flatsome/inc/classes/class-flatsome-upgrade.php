@@ -112,8 +112,11 @@ class Flatsome_Upgrade {
 	 */
 	private function highest_update_version() {
 		return array_reduce( array_keys( $this->updates ), function ( $highest, $current ) {
+			if ( null === $highest ) {
+				return $current;
+			}
 			return version_compare( $highest, $current, '>' ) ? $highest : $current;
-		} );
+		}, null );
 	}
 
 	/**

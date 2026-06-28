@@ -21,15 +21,15 @@ class Version_Selector {
 	public function is_version_update_required( $selected_version, $compare_version ) {
 		$use_dev_versions = defined( 'JETPACK_AUTOLOAD_DEV' ) && JETPACK_AUTOLOAD_DEV;
 
-		if ( is_null( $selected_version ) ) {
+		if ( $selected_version === null ) {
 			return true;
 		}
 
-		if ( $use_dev_versions && $this->is_package_version_dev( $selected_version ) ) {
+		if ( $use_dev_versions && $this->is_dev_version( $selected_version ) ) {
 			return false;
 		}
 
-		if ( $this->is_package_version_dev( $compare_version ) ) {
+		if ( $this->is_dev_version( $compare_version ) ) {
 			if ( $use_dev_versions ) {
 				return true;
 			} else {
@@ -51,7 +51,7 @@ class Version_Selector {
 	 *
 	 * @return bool True if the version is a dev version, else false.
 	 */
-	private function is_package_version_dev( $version ) {
+	public function is_dev_version( $version ) {
 		if ( 'dev-' === substr( $version, 0, 4 ) || '9999999-dev' === $version ) {
 			return true;
 		}

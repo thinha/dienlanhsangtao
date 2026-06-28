@@ -1,7 +1,10 @@
 <?php
-/*******************************************************************************
- * Copyright (c) 2020, WP Popup Maker
- ******************************************************************************/
+/**
+ * Integration for ContactForm7 Form
+ *
+ * @package   PopupMaker
+ * @copyright Copyright (c) 2024, Code Atlantic LLC
+ */
 
 class PUM_Integration_Form_ContactForm7 extends PUM_Abstract_Integration_Form {
 
@@ -18,7 +21,7 @@ class PUM_Integration_Form_ContactForm7 extends PUM_Abstract_Integration_Form {
 	 * Could be used for other initiations as well where needed.
 	 */
 	public function __construct() {
-		add_action( 'wpcf7_mail_sent', array( $this, 'on_success' ), 1 );
+		add_action( 'wpcf7_mail_sent', [ $this, 'on_success' ], 1 );
 	}
 
 	/**
@@ -27,7 +30,8 @@ class PUM_Integration_Form_ContactForm7 extends PUM_Abstract_Integration_Form {
 	 * @return string
 	 */
 	public function label() {
-		return __( 'Contact Form 7' );
+		// phpcs:ignore WordPress.WP.I18n.TextDomainMismatch
+		return __( 'Contact Form 7', 'contact-form-7' );
 	}
 
 	/**
@@ -45,10 +49,12 @@ class PUM_Integration_Form_ContactForm7 extends PUM_Abstract_Integration_Form {
 	 * @return array
 	 */
 	public function get_forms() {
-		return get_posts( [
-			'post_type'      => 'wpcf7_contact_form',
-			'posts_per_page' => - 1,
-		] );
+		return get_posts(
+			[
+				'post_type'      => 'wpcf7_contact_form',
+				'posts_per_page' => - 1,
+			]
+		);
 	}
 
 	/**
@@ -87,18 +93,23 @@ class PUM_Integration_Form_ContactForm7 extends PUM_Abstract_Integration_Form {
 	 * @param WPCF7_ContactForm $cfdata
 	 */
 	public function on_success( $cfdata ) {
-
-		if ( ! self::should_process_submission() ) {
+		if ( ! $this->should_process_submission() ) {
 			return;
 		}
-		$popup_id = self::get_popup_id();
-		self::increase_conversion( $popup_id );
 
-		pum_integrated_form_submission( [
-			'popup_id'      => $popup_id,
-			'form_provider' => $this->key,
-			'form_id'       => $cfdata->id(),
-		] );
+		$popup_id = $this->get_popup_id();
+
+		if ( $popup_id ) {
+			$this->increase_conversion( $popup_id );
+		}
+
+		pum_integrated_form_submission(
+			[
+				'popup_id'      => $popup_id,
+				'form_provider' => $this->key,
+				'form_id'       => $cfdata->id(),
+			]
+		);
 	}
 
 	/**

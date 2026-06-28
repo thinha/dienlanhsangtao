@@ -716,8 +716,14 @@ function rocket_clean_home( $lang = '' ) {
 	*/
 	do_action( 'before_rocket_clean_home', $root, $lang ); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals
 
-	// Delete homepage.
-	$files = glob( $root . '/{index,index-*}.{html,html_gzip}', GLOB_BRACE | GLOB_NOSORT );
+	// Delete homepage (GLOB_BRACE unsupported on Alpine/musl — expand patterns manually).
+	$files = array_merge(
+		(array) glob( $root . '/index.html', GLOB_NOSORT ),
+		(array) glob( $root . '/index-*.html', GLOB_NOSORT ),
+		(array) glob( $root . '/index.html_gzip', GLOB_NOSORT ),
+		(array) glob( $root . '/index-*.html_gzip', GLOB_NOSORT )
+	);
+	$files = array_filter( $files );
 	if ( $files ) {
 		foreach ( $files as $file ) { // no array map to use @.
 			rocket_direct_filesystem()->delete( $file );
@@ -733,7 +739,7 @@ function rocket_clean_home( $lang = '' ) {
 	}
 
 	// Remove the hidden empty file for mobile detection on NGINX with the Rocket NGINX configuration.
-	$nginx_mobile_detect_files = glob( $root . '/.mobile-active', GLOB_BRACE | GLOB_NOSORT );
+	$nginx_mobile_detect_files = glob( $root . '/.mobile-active', GLOB_NOSORT );
 	if ( $nginx_mobile_detect_files ) {
 		foreach ( $nginx_mobile_detect_files as $nginx_mobile_detect_file ) { // no array map to use @.
 			rocket_direct_filesystem()->delete( $nginx_mobile_detect_file );
@@ -741,7 +747,7 @@ function rocket_clean_home( $lang = '' ) {
 	}
 
 	// Remove the hidden empty file for webp.
-	$nowebp_detect_files = glob( $root . '/.no-webp', GLOB_BRACE | GLOB_NOSORT );
+	$nowebp_detect_files = glob( $root . '/.no-webp', GLOB_NOSORT );
 	if ( $nowebp_detect_files ) {
 		foreach ( $nowebp_detect_files as $nowebp_detect_file ) { // no array map to use @.
 			rocket_direct_filesystem()->delete( $nowebp_detect_file );

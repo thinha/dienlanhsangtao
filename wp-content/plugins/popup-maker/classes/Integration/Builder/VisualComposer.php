@@ -1,7 +1,10 @@
 <?php
-/*******************************************************************************
- * Copyright (c) 2020, WP Popup Maker
- ******************************************************************************/
+/**
+ * Integration for VisualComposer
+ *
+ * @package   PopupMaker
+ * @copyright Copyright (c) 2024, Code Atlantic LLC
+ */
 
 class PUM_Integration_Builder_VisualComposer extends PUM_Abstract_Integration {
 
@@ -28,5 +31,4 @@ class PUM_Integration_Builder_VisualComposer extends PUM_Abstract_Integration {
 	public function enabled() {
 		return defined( 'WPB_VC_VERSION' ) || defined( 'FL_BUILDER_VERSION' );
 	}
-
 }

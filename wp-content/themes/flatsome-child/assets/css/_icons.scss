@@ -1,0 +1,164 @@
+// Lucide inline icons — color via currentColor
+.dmc-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  vertical-align: middle;
+  color: var(--blue, #0758c9);
+  line-height: 0;
+
+  svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+
+  &--white {
+    color: #fff;
+  }
+
+  &--deep {
+    color: #0344a6;
+  }
+
+  &--yellow {
+    color: var(--yellow, #ffd62e);
+  }
+
+  &--muted {
+    color: var(--muted, #65708b);
+  }
+
+  &--ink {
+    color: var(--ink, #16213a);
+  }
+
+  &--accent {
+    color: var(--red, #ff362d);
+  }
+
+  &--category {
+    color: var(--blue, #0758c9);
+  }
+
+  &--mega {
+    color: var(--blue, #0758c9);
+  }
+
+  &--topline {
+    color: rgba(255, 255, 255, 0.92);
+  }
+
+  &--pill {
+    color: #17478b;
+  }
+}
+
+.dmc-homepage,
+.dmc-product-list {
+  .menu-btn,
+  .nav-trigger__icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 0;
+  }
+
+  .action .ico,
+  .pl-cart__icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 0;
+  }
+
+  .topline__item {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .delivery-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .benefit__icon {
+    flex-shrink: 0;
+    line-height: 0;
+  }
+
+  .service__icon {
+    flex-shrink: 0;
+    line-height: 0;
+  }
+
+  .category-icon .dmc-icon {
+    margin: 0 auto;
+  }
+
+  .mega-subitem__icon .dmc-icon,
+  .drawer-subitem__icon .dmc-icon,
+  .nav-list__icon .dmc-icon {
+    display: flex;
+    margin: 0 auto;
+  }
+
+  .flash-cart,
+  .cart-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 0;
+    text-decoration: none;
+  }
+
+  .wide-sale__check {
+    display: inline-flex;
+    vertical-align: middle;
+    margin-right: 4px;
+  }
+
+  .wide-goods {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    line-height: 0;
+  }
+
+  .mobile-bar {
+    .dmc-icon {
+      display: flex;
+      margin: 0 auto 2px;
+    }
+
+    .active .dmc-icon {
+      color: var(--blue, #0758c9);
+    }
+  }
+
+  .search button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 0;
+  }
+}
+
+.dmc-product-list {
+  .pl-filters__icon {
+    display: inline-flex;
+    line-height: 0;
+  }
+
+  .pl-detail__trust-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    background: transparent;
+    border-radius: 0;
+  }
+}

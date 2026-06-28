@@ -7,15 +7,19 @@
   "general_event_on_woo_enabled": true,
   "general_event_on_edd_enabled": true,
 
+  "enable_all_tracking_ids" : true,
+
   "cookie_duration": 7,
   "last_visit_duration": 60,
   "debug_enabled": false,
+  "session_disable": false,
   "do_not_track_user_roles": [],
   "admin_permissions": [
     "administrator"
   ],
 
-  "block_robot_enabled": false,
+  "block_robot_enabled": true,
+  "exclude_blocked_robots": ["WP Rocket"],
   "block_ip_enabled": false,
   "blocked_ips": [],
 
@@ -50,6 +54,7 @@
   "edd_view_content_value_option": "price",
   "edd_view_content_value_global": 0,
   "edd_enabled_save_data_to_orders": true,
+  "edd_enabled_display_data_to_orders": true,
 
   "custom_events_enabled": true,
 
@@ -60,6 +65,7 @@
   "gdpr_cookiebot_integration_enabled": false,
   "gdpr_cookiebot_facebook_consent_category": "marketing",
   "gdpr_cookiebot_tiktok_consent_category": "marketing",
+  "gdpr_cookiebot_google_ads_consent_category": "marketing",
   "gdpr_cookiebot_analytics_consent_category": "statistics",
   "gdpr_cookiebot_pinterest_consent_category": "marketing",
   "gdpr_cookiebot_bing_consent_category": "marketing",
@@ -68,6 +74,11 @@
   "gdpr_ajax_enabled": false,
   "gdpr_real_cookie_banner_integration_enabled": false,
   "consent_magic_integration_enabled": true,
+
+  "woo_poas_enabled": false,
+  "woo_cog_source": "pixel_cog",
+  "woo_cog_wc_include_tax": false,
+  "woo_cog_wc_include_shipping": false,
 
   "woo_purchase_value_cog": "",
   "woo_content_value_cog": "",
@@ -82,8 +93,6 @@
   "edd_view_content_enabled": true,
   "edd_view_category_enabled": true,
 
-
-  "woo_complete_registration_enabled": false,
   "woo_purchase_enabled": true,
   "woo_initiate_checkout_enabled": true,
   "woo_remove_from_cart_enabled": false,
@@ -92,8 +101,14 @@
   "woo_view_category_enabled": true,
   "woo_view_cart_enabled" : true,
   "woo_enabled_save_data_to_orders": true,
+  "woo_enabled_display_data_to_orders": true,
   "woo_add_enrich_to_admin_email": true,
 
+  "enable_CwCD" : true,
+  "aw_merchant_id": "",
+  "aw_feed_country": "",
+  "aw_feed_label": "",
+  "aw_feed_language": "",
 
   "enable_event_url_param": true,
   "enable_remove_source_url_params": true,
@@ -124,6 +139,7 @@
   "automatic_event_comment_enabled": true,
   "automatic_event_scroll_enabled": true,
   "automatic_event_time_on_page_enabled": true,
+  "automatic_event_404_enabled": true,
   "automatic_event_search_enabled": true,
 
   "automatic_event_download_extensions": [
@@ -145,5 +161,13 @@
 
   "send_external_id": true,
   "external_id_expire": 180,
-  "server_event_use_ajax": true
+  "external_id_use_transient": true,
+  "track_cookie_for_subdomains": true,
+  "server_event_use_ajax": true,
+  "server_static_event_use_ajax": true,
+  "google_consent_mode": true,
+
+  "use_send_beacon": true,
+
+  "data_persistency": "keep_data"
 }

@@ -3,7 +3,9 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit; // Exit if accessed directly.
 }
 use function PixelYourSite\isWooUseHPStorage;
+use function PixelYourSite\PYS;
 
+if(!PYS()->getOption('woo_enabled_display_data_to_orders') || !isset($orderId)) return;
 include_once "function-helper.php";
 $order = wc_get_order($orderId);
 $data = array();
@@ -46,11 +48,18 @@ if($data && is_array($data)) :
         </tr>
         <tr >
             <th>Landing Page:</th>
-            <td><a href="<?=$data['pys_landing']?>" target="_blank" ><?=$data['pys_landing']?></a></td>
+            <?php
+            $landingPage = !empty($data['pys_landing']) ? $data['pys_landing'] : "No Landing Page";
+            if (filter_var($landingPage, FILTER_VALIDATE_URL)) {
+                echo '<td><a href="' . esc_url($landingPage) . '" target="_blank">' . esc_html($landingPage) . '</a></td>';
+            } else {
+                echo '<td>' . esc_html($landingPage) . '</td>';
+            }
+            ?>
         </tr>
         <tr>
             <th>Traffic source:</th>
-            <td><?=isset($data['pys_source']) ? $data['pys_source'] : ""?></td>
+            <td><?= esc_html(!empty($data['pys_source']) ? $data['pys_source'] : "No Traffic source") ?></td>
         </tr>
         <?php
         if(!empty($data['pys_utm'])) {
@@ -69,14 +78,19 @@ if($data && is_array($data)) :
             <td colspan="2" class="border"><span></span></td>
         </tr>
         <tr >
-            <?php
-            $lastLanding = isset($data['last_pys_landing']) ? $data['last_pys_landing'] : "";?>
             <th>Landing Page:</th>
-            <td><a href="<?=$lastLanding?>" target="_blank" ><?=$lastLanding?></a></td>
+            <?php
+            $lastLanding = !empty($data['last_pys_landing']) ? $data['last_pys_landing'] : "No Landing Page";
+            if (filter_var($lastLanding, FILTER_VALIDATE_URL)) {
+                echo '<td><a href="' . esc_url($lastLanding) . '" target="_blank">' . esc_html($lastLanding) . '</a></td>';
+            } else {
+                echo '<td>' . esc_html($lastLanding) . '</td>';
+            }
+            ?>
         </tr>
         <tr>
             <th>Traffic source:</th>
-            <td><?=isset($data['last_pys_source']) ? $data['last_pys_source'] : ""?></td>
+            <td><?= esc_html(!empty($data['last_pys_source']) ? $data['last_pys_source'] : "No Traffic source") ?></td>
         </tr>
         <?php
         if(!empty($data['last_pys_utm'])) {
@@ -98,15 +112,15 @@ if($data && is_array($data)) :
             </tr>
             <tr >
                 <th>Hour:</th>
-                <td><?=$userTime[0]?></td>
+                <td><?= esc_html($userTime[0]); ?></td>
             </tr>
             <tr >
                 <th>Day:</th>
-                <td><?=$userTime[1]?></td>
+                <td><?= esc_html($userTime[1]); ?></td>
             </tr>
             <tr >
                 <th>Month:</th>
-                <td><?=$userTime[2]?></td>
+                <td><?= esc_html($userTime[2]); ?></td>
             </tr>
         <?php endif; ?>
 
