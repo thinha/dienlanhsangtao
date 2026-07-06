@@ -53,6 +53,10 @@
   &--pill {
     color: #17478b;
   }
+
+  &--bar {
+    color: #000;
+  }
 }
 
 .dmc-homepage,
@@ -132,10 +136,7 @@
     .dmc-icon {
       display: flex;
       margin: 0 auto 2px;
-    }
-
-    .active .dmc-icon {
-      color: var(--blue, #0758c9);
+      color: #000;
     }
   }
 

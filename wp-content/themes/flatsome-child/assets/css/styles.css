@@ -47,6 +47,9 @@
 .dmc-icon--pill {
   color: #17478b;
 }
+.dmc-icon--bar {
+  color: #000;
+}
 
 .dmc-homepage .menu-btn,
 .dmc-homepage .nav-trigger__icon,
@@ -128,10 +131,7 @@
 .dmc-product-list .mobile-bar .dmc-icon {
   display: flex;
   margin: 0 auto 2px;
-}
-.dmc-homepage .mobile-bar .active .dmc-icon,
-.dmc-product-list .mobile-bar .active .dmc-icon {
-  color: var(--blue, #0758c9);
+  color: #000;
 }
 .dmc-homepage .search button,
 .dmc-product-list .search button {
@@ -687,6 +687,7 @@ body.dmc-homepage-page #wrapper > #main:not(:has(.dmc-homepage)) {
   font-size: 16px;
   font-weight: 900;
   line-height: 1.3;
+  color: #fff;
 }
 .dmc-homepage .drawer-close {
   border: 0;
@@ -838,6 +839,18 @@ body.dmc-homepage-page #wrapper > #main:not(:has(.dmc-homepage)) {
   line-height: 1.25;
   font-weight: 600;
   max-width: 88px;
+}
+@media (max-width: 1099px) {
+  .dmc-homepage .drawer-head {
+    background: linear-gradient(105deg, #0646a8, #0966db);
+    color: #fff;
+  }
+  .dmc-homepage .drawer-head__title {
+    color: #fff;
+  }
+  .dmc-homepage .drawer-close {
+    color: #fff;
+  }
 }
 @media (min-width: 901px) and (max-width: 1099px) {
   .dmc-homepage .drawer-sidebar {
@@ -1796,6 +1809,9 @@ body.dmc-homepage-page #wrapper > #main:not(:has(.dmc-homepage)) {
   display: none;
 }
 @media (max-width: 1099px) {
+  .dmc-homepage .site-header {
+    position: static;
+  }
   .dmc-homepage .topline,
   .dmc-homepage .nav,
   .dmc-homepage .pl-nav {
@@ -2243,20 +2259,43 @@ body.dmc-homepage-page #wrapper > #main:not(:has(.dmc-homepage)) {
   .dmc-homepage .mobile-bar a {
     border: 0;
     background: transparent;
-    color: #69738a;
+    color: #000;
     font-size: 9px;
-    display: grid;
-    place-items: center;
+    font-weight: 500;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
     gap: 2px;
     text-decoration: none;
+    text-transform: none;
+    padding: 0;
+    min-width: 0;
+    line-height: 1.2;
+    -webkit-appearance: none;
+    appearance: none;
+  }
+  .dmc-homepage .mobile-bar__label {
+    display: block;
+    color: #000;
+    font-size: 9px;
+    font-weight: inherit;
+    line-height: 1.2;
+    text-align: center;
+    white-space: nowrap;
+    text-transform: none;
+  }
+  .dmc-homepage .mobile-bar button .dmc-icon {
+    display: flex;
+    flex-shrink: 0;
   }
   .dmc-homepage .mobile-bar i {
     font-style: normal;
     font-size: 20px;
   }
   .dmc-homepage .mobile-bar .active {
-    color: var(--blue);
-    font-weight: 850;
+    color: #000;
+    font-weight: 700;
   }
 }
 
