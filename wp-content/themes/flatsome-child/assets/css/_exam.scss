@@ -2,44 +2,61 @@
 // Exam — Bài thi trắc nghiệm
 // ==========================================================================
 
-$dmc-blue: #0758c9;
-$dmc-blue2: #0d6de0;
-$dmc-deep: #0344a6;
-$dmc-yellow: #ffd62e;
-$dmc-red: #ff362d;
-$dmc-ink: #16213a;
-$dmc-muted: #65708b;
-$dmc-bg: #f4f7fb;
-$dmc-border: #e5ebf5;
+$dmc-blue: #0b4f9c;
+$dmc-blue2: #1565c0;
+$dmc-deep: #0a3d7a;
+$dmc-accent: #e8f1fb;
+$dmc-warn: #c62828;
+$dmc-ink: #1a2433;
+$dmc-muted: #5b6b7c;
+$dmc-bg: #eef3f8;
+$dmc-border: #d7e2ef;
 $dmc-card: #fff;
-$dmc-shadow: 0 10px 26px rgba(32, 61, 114, 0.08);
+$dmc-shadow: 0 12px 28px rgba(15, 45, 90, 0.08);
 $dmc-max: 860px;
 $dmc-bp-mobile: 900px;
 
 body.dmc-exam-page {
-  background: $dmc-bg;
-  padding-bottom: 0;
+  background:
+    radial-gradient(circle at top left, rgba(21, 101, 192, 0.08), transparent 34%),
+    linear-gradient(180deg, #f5f8fc 0%, $dmc-bg 100%);
+  min-height: 100vh;
+  padding: 0;
+  margin: 0;
 
   #wrapper > #header,
   #wrapper > header,
   #wrapper > #footer,
   #wrapper > footer,
-  #wrapper > #main:not(:has(.dmc-exam)) {
+  #wrapper > #main:not(:has(.dmc-exam)),
+  .header,
+  .header-wrapper,
+  #header,
+  footer,
+  #footer,
+  .footer-wrapper,
+  .dmc-mobile-bar,
+  .mobile-bar,
+  .search-toolbar,
+  .dmc-drawer,
+  .topline {
     display: none !important;
   }
 
   #wrapper,
   #main {
     min-height: 0 !important;
-  }
-
-  @media (max-width: $dmc-bp-mobile) {
-    padding-bottom: 64px;
+    padding: 0 !important;
+    margin: 0 !important;
   }
 }
 
+.dmc-exam {
+  min-height: 100vh;
+}
+
 .dmc-exam-main {
-  padding: 24px 0 48px;
+  padding: 28px 0 48px;
 }
 
 .dmc-exam-content {
@@ -48,56 +65,156 @@ body.dmc-exam-page {
 }
 
 .dmc-exam-content__header {
-  background: linear-gradient(135deg, $dmc-deep 0%, $dmc-blue2 100%);
+  position: relative;
+  overflow: hidden;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.08), transparent 42%),
+    linear-gradient(135deg, $dmc-deep 0%, $dmc-blue 48%, $dmc-blue2 100%);
   color: #fff;
-  border-radius: 18px;
-  padding: 28px 24px;
-  box-shadow: $dmc-shadow;
+  border-radius: 20px;
+  padding: 22px 24px 20px;
+  box-shadow: 0 16px 34px rgba(10, 61, 122, 0.22);
   margin-bottom: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.dmc-exam-content__header::after {
+  content: '';
+  position: absolute;
+  right: -40px;
+  top: -48px;
+  width: 180px;
+  height: 180px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.08);
+  pointer-events: none;
+}
+
+.dmc-exam-content__header-top {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.dmc-exam-content__brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.dmc-exam-content__brand-mark {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #7ec8ff;
+  box-shadow: 0 0 0 4px rgba(126, 200, 255, 0.22);
+}
+
+.dmc-exam-content__brand-text {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.9;
+}
+
+.dmc-exam-content__timer {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px 8px 14px;
+  border-radius: 999px;
+  background: rgba(8, 28, 56, 0.28);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  backdrop-filter: blur(6px);
+}
+
+.dmc-exam-content__timer-label {
+  font-size: 12px;
+  font-weight: 600;
+  opacity: 0.88;
+}
+
+.dmc-exam-content__timer-value {
+  min-width: 64px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #fff;
+  color: $dmc-deep;
+  font-size: 16px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  letter-spacing: 0.02em;
+
+  &.is-warning {
+    background: #ffe8e6;
+    color: $dmc-warn;
+  }
 }
 
 .dmc-exam-content__title {
+  position: relative;
+  z-index: 1;
   margin: 0 0 8px;
-  font-size: clamp(24px, 4vw, 32px);
+  font-size: clamp(24px, 4vw, 34px);
   font-weight: 800;
   line-height: 1.2;
+  letter-spacing: -0.02em;
+  color: #fff;
 }
 
 .dmc-exam-content__subtitle {
+  position: relative;
+  z-index: 1;
   margin: 0 0 16px;
-  color: rgba(255, 255, 255, 0.88);
+  color: rgba(255, 255, 255, 0.86);
   line-height: 1.6;
+  max-width: 48ch;
 }
 
 .dmc-exam-content__meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px 16px;
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 10px;
+  margin-top: 4px;
 }
 
 .dmc-exam-content__meta-item {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 12px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.14);
-  font-size: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.14);
 }
 
-.dmc-exam-content__meta-item--timer strong {
-  font-variant-numeric: tabular-nums;
-  min-width: 52px;
-  display: inline-block;
-  text-align: center;
+.dmc-exam-content__meta-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  opacity: 0.78;
+}
 
-  &.is-warning {
-    color: $dmc-yellow;
-  }
+.dmc-exam-content__meta-item strong {
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.35;
+  word-break: break-word;
 }
 
 .dmc-exam-empty,
 .dmc-exam-form,
+.dmc-exam-gate,
 .dmc-exam-question {
   background: $dmc-card;
   border: 1px solid $dmc-border;
@@ -110,8 +227,32 @@ body.dmc-exam-page {
   color: $dmc-muted;
 }
 
-.dmc-exam-form {
+.dmc-exam-form,
+.dmc-exam-gate {
   padding: 24px;
+}
+
+.dmc-exam-gate__title {
+  margin: 0 0 8px;
+  font-size: 22px;
+  font-weight: 800;
+  color: $dmc-ink;
+}
+
+.dmc-exam-gate__desc {
+  margin: 0 0 20px;
+  color: $dmc-muted;
+  line-height: 1.6;
+}
+
+.dmc-exam-gate__fields {
+  display: grid;
+  gap: 16px;
+  margin-bottom: 8px;
+}
+
+.dmc-exam-form__field {
+  margin-bottom: 4px;
 }
 
 .dmc-exam-form__candidate {
@@ -126,10 +267,11 @@ body.dmc-exam-page {
 }
 
 .dmc-exam-form__required {
-  color: $dmc-red;
+  color: $dmc-warn;
 }
 
-.dmc-exam-form__input {
+.dmc-exam-form__input,
+.dmc-exam-form__select {
   width: 100%;
   max-width: 420px;
   border: 1px solid $dmc-border;
@@ -142,8 +284,18 @@ body.dmc-exam-page {
   &:focus {
     outline: none;
     border-color: $dmc-blue2;
-    box-shadow: 0 0 0 3px rgba(13, 109, 224, 0.12);
+    box-shadow: 0 0 0 3px rgba(21, 101, 192, 0.12);
   }
+}
+
+.dmc-exam-form__select {
+  appearance: none;
+  background-image: linear-gradient(45deg, transparent 50%, $dmc-muted 50%),
+    linear-gradient(135deg, $dmc-muted 50%, transparent 50%);
+  background-position: calc(100% - 18px) calc(50% - 3px), calc(100% - 12px) calc(50% - 3px);
+  background-size: 6px 6px, 6px 6px;
+  background-repeat: no-repeat;
+  padding-right: 36px;
 }
 
 .dmc-exam-questions {
@@ -183,13 +335,13 @@ body.dmc-exam-page {
   transition: border-color 0.15s ease, background 0.15s ease;
 
   &:hover {
-    border-color: rgba(13, 109, 224, 0.35);
+    border-color: rgba(21, 101, 192, 0.35);
     background: #f8fbff;
   }
 
   &:has(.dmc-exam-answer__input:checked) {
     border-color: $dmc-blue2;
-    background: rgba(13, 109, 224, 0.08);
+    background: rgba(21, 101, 192, 0.08);
   }
 }
 
@@ -233,7 +385,7 @@ body.dmc-exam-page {
   font-weight: 800;
   padding: 14px 34px;
   cursor: pointer;
-  box-shadow: 0 10px 24px rgba(7, 88, 201, 0.24);
+  box-shadow: 0 10px 24px rgba(10, 61, 122, 0.24);
 
   &:disabled {
     opacity: 0.7;
@@ -248,15 +400,15 @@ body.dmc-exam-page {
   font-size: 14px;
 
   &--error {
-    background: rgba(255, 54, 45, 0.08);
+    background: rgba(198, 40, 40, 0.08);
     color: #b42318;
-    border: 1px solid rgba(255, 54, 45, 0.18);
+    border: 1px solid rgba(198, 40, 40, 0.18);
   }
 
   &--warning {
-    background: rgba(255, 214, 46, 0.18);
+    background: rgba(255, 193, 7, 0.16);
     color: #7a5d00;
-    border: 1px solid rgba(255, 214, 46, 0.35);
+    border: 1px solid rgba(255, 193, 7, 0.35);
   }
 }
 
@@ -264,8 +416,8 @@ body.dmc-exam-page {
   margin-top: 16px;
   padding: 18px 20px;
   border-radius: 14px;
-  background: rgba(7, 88, 201, 0.08);
-  border: 1px solid rgba(7, 88, 201, 0.16);
+  background: rgba(21, 101, 192, 0.08);
+  border: 1px solid rgba(21, 101, 192, 0.16);
   color: $dmc-ink;
 
   h3 {
@@ -283,13 +435,28 @@ body.dmc-exam-page {
 }
 
 @media (max-width: $dmc-bp-mobile) {
+  .dmc-exam-main {
+    padding: 16px 0 32px;
+  }
+
   .dmc-exam-content__header,
   .dmc-exam-form,
+  .dmc-exam-gate,
   .dmc-exam-question {
     border-radius: 14px;
   }
 
-  .dmc-exam-form__input {
+  .dmc-exam-content__header {
+    padding: 18px 16px 16px;
+  }
+
+  .dmc-exam-content__timer {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .dmc-exam-form__input,
+  .dmc-exam-form__select {
     max-width: none;
   }
 }

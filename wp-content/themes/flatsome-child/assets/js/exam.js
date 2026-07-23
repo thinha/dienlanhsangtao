@@ -2,47 +2,29 @@
 	'use strict';
 
 	var config = window.dmcExam || {};
-	var form = document.getElementById('dmc-exam-form');
 
-	if (!form || !config.ajaxUrl) {
+	if (!config.ajaxUrl) {
 		return;
 	}
 
-	var timerEl = document.getElementById('dmc-exam-timer');
-	var noticeEl = document.getElementById('dmc-exam-notice');
-	var resultEl = document.getElementById('dmc-exam-result');
-	var submitBtn = document.getElementById('dmc-exam-submit');
-	var nameInput = document.getElementById('dmc-exam-candidate-name');
-	var startedAt = Date.now();
-	var remainingSeconds = Math.max(0, parseInt(config.timeLimitMin, 10) || 0) * 60;
-	var timerId = null;
-	var isSubmitting = false;
+	var gateForm = document.getElementById('dmc-exam-gate');
+	var examForm = document.getElementById('dmc-exam-form');
 
 	function pad(value) {
 		return String(value).padStart(2, '0');
 	}
 
 	function formatTimer(totalSeconds) {
-		var minutes = Math.floor(totalSeconds / 60);
+		totalSeconds = Math.max(0, totalSeconds | 0);
+		var hours = Math.floor(totalSeconds / 3600);
+		var minutes = Math.floor((totalSeconds % 3600) / 60);
 		var seconds = totalSeconds % 60;
+
+		if (hours > 0) {
+			return hours + ':' + pad(minutes) + ':' + pad(seconds);
+		}
+
 		return pad(minutes) + ':' + pad(seconds);
-	}
-
-	function showNotice(message, type) {
-		if (!noticeEl) {
-			return;
-		}
-
-		noticeEl.hidden = false;
-		noticeEl.textContent = message;
-		noticeEl.className = 'dmc-exam-form__notice dmc-exam-form__notice--' + (type || 'error');
-	}
-
-	function hideNotice() {
-		if (noticeEl) {
-			noticeEl.hidden = true;
-			noticeEl.textContent = '';
-		}
 	}
 
 	function formatClientTimestamp(date) {
@@ -57,151 +39,329 @@
 		return day + '/' + month + '/' + year + ' ' + hours + ':' + minutes + ':' + seconds + '.' + ms;
 	}
 
-	function collectAnswers() {
-		var answers = {};
-		var inputs = form.querySelectorAll('.dmc-exam-question');
+	function showNotice(el, message, type) {
+		if (!el) {
+			return;
+		}
 
-		for (var i = 0; i < inputs.length; i++) {
-			var question = inputs[i];
-			var qid = question.getAttribute('data-question-id');
-			var selected = question.querySelector('input[type="radio"]:checked');
+		el.hidden = false;
+		el.textContent = message;
+		el.className = 'dmc-exam-form__notice dmc-exam-form__notice--' + (type || 'error');
+	}
 
-			if (!selected) {
-				return null;
+	function hideNotice(el) {
+		if (el) {
+			el.hidden = true;
+			el.textContent = '';
+		}
+	}
+
+	function redirectToGate(status) {
+		var url = new URL(window.location.href);
+		url.searchParams.set('exam', status || 'done');
+		window.location.replace(url.toString());
+	}
+
+	function initGate() {
+		if (!gateForm) {
+			return;
+		}
+
+		var noticeEl = document.getElementById('dmc-exam-gate-notice');
+		var startBtn = document.getElementById('dmc-exam-start');
+		var nameInput = document.getElementById('dmc-exam-candidate-name');
+		var phoneInput = document.getElementById('dmc-exam-candidate-phone');
+		var deptInput = document.getElementById('dmc-exam-candidate-department');
+		var isStarting = false;
+
+		gateForm.addEventListener('submit', function (event) {
+			event.preventDefault();
+
+			if (isStarting) {
+				return;
 			}
 
-			answers['q_' + qid] = selected.value;
-		}
+			hideNotice(noticeEl);
 
-		return answers;
-	}
+			var name = nameInput ? nameInput.value.trim() : '';
+			var phone = phoneInput ? phoneInput.value.trim() : '';
+			var department = deptInput ? deptInput.value.trim() : '';
 
-	function renderResult(data) {
-		if (!resultEl) {
-			return;
-		}
-
-		var html = '<h3>Đã nộp bài thành công</h3>';
-		html += '<p><strong>Thời gian nộp:</strong> ' + (data.submitted_at || '') + '</p>';
-
-		if (typeof data.score !== 'undefined') {
-			html += '<p><strong>Điểm:</strong> ' + data.score + '% (' + data.correct_count + '/' + data.gradable_count + ')</p>';
-		}
-
-		resultEl.innerHTML = html;
-		resultEl.hidden = false;
-	}
-
-	function disableForm() {
-		form.classList.add('is-submitted');
-
-		var fields = form.querySelectorAll('input, button');
-		for (var i = 0; i < fields.length; i++) {
-			fields[i].disabled = true;
-		}
-	}
-
-	function submitExam(isAuto) {
-		if (isSubmitting) {
-			return;
-		}
-
-		hideNotice();
-
-		var candidateName = nameInput ? nameInput.value.trim() : '';
-
-		if (config.requireName && !candidateName) {
-			showNotice(config.messages.nameRequired || 'Vui lòng nhập họ tên thí sinh.');
-			if (nameInput) {
-				nameInput.focus();
+			if (!name) {
+				showNotice(noticeEl, config.messages.nameRequired || 'Vui lòng nhập họ tên thí sinh.');
+				if (nameInput) {
+					nameInput.focus();
+				}
+				return;
 			}
-			return;
-		}
 
-		var answers = collectAnswers();
+			if (!phone) {
+				showNotice(noticeEl, config.messages.phoneRequired || 'Vui lòng nhập số điện thoại.');
+				if (phoneInput) {
+					phoneInput.focus();
+				}
+				return;
+			}
 
-		if (!answers) {
-			showNotice(config.messages.required || 'Vui lòng trả lời tất cả câu hỏi trước khi nộp bài.');
-			return;
-		}
+			if (!department) {
+				showNotice(noticeEl, config.messages.deptRequired || 'Vui lòng nhập khoa.');
+				if (deptInput) {
+					deptInput.focus();
+				}
+				return;
+			}
 
-		if (isAuto) {
-			showNotice(config.messages.timeUp || 'Hết giờ làm bài. Bài thi sẽ được nộp tự động.', 'warning');
-		}
+			isStarting = true;
 
-		isSubmitting = true;
+			if (startBtn) {
+				startBtn.disabled = true;
+				startBtn.textContent = config.messages.starting || 'Đang bắt đầu...';
+			}
 
-		if (submitBtn) {
-			submitBtn.disabled = true;
-			submitBtn.textContent = config.messages.submitting || 'Đang gửi bài...';
-		}
+			var payload = new FormData();
+			payload.append('action', 'dmc_exam_start');
+			payload.append('nonce', config.nonce || '');
+			payload.append('page_id', String(config.pageId || ''));
+			payload.append('candidate_name', name);
+			payload.append('candidate_phone', phone);
+			payload.append('candidate_department', department);
 
-		var now = new Date();
-		var payload = new FormData();
-		payload.append('action', 'dmc_exam_submit');
-		payload.append('nonce', config.nonce || '');
-		payload.append('page_id', String(config.pageId || ''));
-		payload.append('candidate_name', candidateName);
-		payload.append('time_spent_seconds', String(Math.max(0, Math.floor((Date.now() - startedAt) / 1000))));
-		payload.append('client_submitted_unix_ms', String(now.getTime()));
-		payload.append('client_submitted_label', formatClientTimestamp(now));
+			fetch(config.ajaxUrl, {
+				method: 'POST',
+				body: payload,
+				credentials: 'same-origin',
+			})
+				.then(function (response) {
+					return response.json();
+				})
+				.then(function (result) {
+					if (!result || !result.success) {
+						throw new Error(
+							(result && result.data && result.data.message) ||
+								config.messages.startError ||
+								'Không bắt đầu được bài thi.'
+						);
+					}
 
-		Object.keys(answers).forEach(function (key) {
-			payload.append('answers[' + key + ']', answers[key]);
+					var url = new URL(window.location.href);
+					url.searchParams.delete('exam');
+					window.location.replace(url.toString());
+				})
+				.catch(function (error) {
+					isStarting = false;
+
+					if (startBtn) {
+						startBtn.disabled = false;
+						startBtn.textContent = 'Bắt đầu làm bài';
+					}
+
+					showNotice(noticeEl, error.message || config.messages.startError);
+				});
 		});
-
-		fetch(config.ajaxUrl, {
-			method: 'POST',
-			body: payload,
-			credentials: 'same-origin',
-		})
-			.then(function (response) {
-				return response.json();
-			})
-			.then(function (result) {
-				if (!result || !result.success) {
-					throw new Error((result && result.data && result.data.message) || config.messages.submitError);
-				}
-
-				disableForm();
-				renderResult(result.data || {});
-			})
-			.catch(function (error) {
-				isSubmitting = false;
-
-				if (submitBtn) {
-					submitBtn.disabled = false;
-					submitBtn.textContent = 'Nộp bài';
-				}
-
-				showNotice(error.message || config.messages.submitError);
-			});
 	}
 
-	function tickTimer() {
-		if (!timerEl || remainingSeconds <= 0) {
+	function initExam() {
+		if (!examForm || !config.hasSession) {
 			return;
 		}
 
-		remainingSeconds -= 1;
-		timerEl.textContent = formatTimer(remainingSeconds);
+		var timerEl = document.getElementById('dmc-exam-timer');
+		var noticeEl = document.getElementById('dmc-exam-notice');
+		var resultEl = document.getElementById('dmc-exam-result');
+		var submitBtn = document.getElementById('dmc-exam-submit');
+		var startedAt = (parseInt(config.startedAt, 10) || 0) * 1000;
+		var remainingSeconds = Math.max(0, parseInt(config.remainingSeconds, 10) || 0);
+		var timeLimitSeconds = Math.max(0, parseInt(config.timeLimitSeconds, 10) || 0);
+		var timerId = null;
+		var isSubmitting = false;
 
-		if (remainingSeconds <= 60) {
-			timerEl.classList.add('is-warning');
+		if (!startedAt) {
+			startedAt = Date.now() - Math.max(0, timeLimitSeconds - remainingSeconds) * 1000;
 		}
 
-		if (remainingSeconds <= 0) {
-			window.clearInterval(timerId);
-			submitExam(true);
+		function collectAnswers(requireAll) {
+			var answers = {};
+			var inputs = examForm.querySelectorAll('.dmc-exam-question');
+
+			for (var i = 0; i < inputs.length; i++) {
+				var question = inputs[i];
+				var qid = question.getAttribute('data-question-id');
+				var selected = question.querySelector('input[type="radio"]:checked');
+
+				if (!selected) {
+					if (requireAll) {
+						return null;
+					}
+					continue;
+				}
+
+				answers['q_' + qid] = selected.value;
+			}
+
+			return answers;
 		}
+
+		function renderResult(data) {
+			if (!resultEl) {
+				return;
+			}
+
+			var html = '<h3>' + (data.is_timeout ? 'Hết giờ — đã kết thúc phiên' : 'Đã nộp bài thành công') + '</h3>';
+			html += '<p><strong>Thời gian nộp:</strong> ' + (data.submitted_at || '') + '</p>';
+
+			if (typeof data.score !== 'undefined') {
+				html +=
+					'<p><strong>Điểm:</strong> ' +
+					data.score +
+					'% (' +
+					data.correct_count +
+					'/' +
+					data.gradable_count +
+					')</p>';
+			}
+
+			html +=
+				'<p>' +
+				(config.messages.doneRedirect || 'Đang quay lại màn hình đăng ký...') +
+				'</p>';
+
+			resultEl.innerHTML = html;
+			resultEl.hidden = false;
+		}
+
+		function disableForm() {
+			examForm.classList.add('is-submitted');
+
+			var fields = examForm.querySelectorAll('input, button');
+			for (var i = 0; i < fields.length; i++) {
+				fields[i].disabled = true;
+			}
+		}
+
+		function submitExam(isAuto) {
+			if (isSubmitting) {
+				return;
+			}
+
+			hideNotice(noticeEl);
+
+			var answers = collectAnswers(!isAuto);
+
+			if (!isAuto && !answers) {
+				showNotice(noticeEl, config.messages.required || 'Vui lòng trả lời tất cả câu hỏi trước khi nộp bài.');
+				return;
+			}
+
+			if (!answers) {
+				answers = {};
+			}
+
+			if (isAuto) {
+				showNotice(
+					noticeEl,
+					config.messages.timeUp || 'Hết giờ làm bài. Hệ thống sẽ nộp bài và kết thúc phiên.',
+					'warning'
+				);
+			}
+
+			isSubmitting = true;
+
+			if (submitBtn) {
+				submitBtn.disabled = true;
+				submitBtn.textContent = config.messages.submitting || 'Đang gửi bài...';
+			}
+
+			var now = new Date();
+			var payload = new FormData();
+			payload.append('action', 'dmc_exam_submit');
+			payload.append('nonce', config.nonce || '');
+			payload.append('page_id', String(config.pageId || ''));
+			payload.append('is_timeout', isAuto ? '1' : '0');
+			var elapsedMs = Math.max(0, Date.now() - startedAt);
+			payload.append('time_spent_seconds', String(Math.floor(elapsedMs / 1000)));
+			payload.append('time_spent_ms', String(elapsedMs));
+			payload.append('client_submitted_unix_ms', String(now.getTime()));
+			payload.append('client_submitted_label', formatClientTimestamp(now));
+
+			Object.keys(answers).forEach(function (key) {
+				payload.append('answers[' + key + ']', answers[key]);
+			});
+
+			fetch(config.ajaxUrl, {
+				method: 'POST',
+				body: payload,
+				credentials: 'same-origin',
+			})
+				.then(function (response) {
+					return response.json();
+				})
+				.then(function (result) {
+					if (!result || !result.success) {
+						var data = (result && result.data) || {};
+
+						if (data.redirect) {
+							redirectToGate(isAuto ? 'timeout' : 'done');
+							return;
+						}
+
+						throw new Error(data.message || config.messages.submitError);
+					}
+
+					disableForm();
+					renderResult(result.data || {});
+
+					window.setTimeout(function () {
+						redirectToGate(isAuto || (result.data && result.data.is_timeout) ? 'timeout' : 'done');
+					}, 1800);
+				})
+				.catch(function (error) {
+					isSubmitting = false;
+
+					if (submitBtn) {
+						submitBtn.disabled = false;
+						submitBtn.textContent = 'Nộp bài';
+					}
+
+					showNotice(noticeEl, error.message || config.messages.submitError);
+				});
+		}
+
+		function tickTimer() {
+			if (!timerEl || remainingSeconds <= 0) {
+				return;
+			}
+
+			remainingSeconds -= 1;
+			timerEl.textContent = formatTimer(remainingSeconds);
+
+			if (remainingSeconds <= 60) {
+				timerEl.classList.add('is-warning');
+			}
+
+			if (remainingSeconds <= 0) {
+				window.clearInterval(timerId);
+				submitExam(true);
+			}
+		}
+
+		if (timerEl) {
+			if (remainingSeconds <= 0 && timeLimitSeconds > 0) {
+				submitExam(true);
+			} else if (remainingSeconds > 0) {
+				timerEl.textContent = formatTimer(remainingSeconds);
+				if (remainingSeconds <= 60) {
+					timerEl.classList.add('is-warning');
+				}
+				timerId = window.setInterval(tickTimer, 1000);
+			}
+		}
+
+		examForm.addEventListener('submit', function (event) {
+			event.preventDefault();
+			submitExam(false);
+		});
 	}
 
-	if (timerEl && remainingSeconds > 0) {
-		timerId = window.setInterval(tickTimer, 1000);
-	}
-
-	form.addEventListener('submit', function (event) {
-		event.preventDefault();
-		submitExam(false);
-	});
+	initGate();
+	initExam();
 })();

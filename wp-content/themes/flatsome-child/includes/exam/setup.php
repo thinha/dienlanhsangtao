@@ -32,7 +32,7 @@ function dmc_exam_register_post_type() {
 			],
 			'public'              => false,
 			'show_ui'             => true,
-			'show_in_menu'        => true,
+			'show_in_menu'        => false,
 			'menu_icon'           => 'dashicons-welcome-learn-more',
 			'menu_position'       => 26,
 			'capability_type'     => 'post',
@@ -50,6 +50,30 @@ function dmc_exam_register_post_type() {
 add_action( 'init', 'dmc_exam_register_post_type' );
 
 /**
+ * Finalize expired sessions early on exam pages.
+ */
+function dmc_exam_bootstrap_session() {
+	if ( is_admin() || ! dmc_is_exam_layout() || wp_doing_ajax() ) {
+		return;
+	}
+
+	$page_id = get_queried_object_id();
+
+	if ( ! $page_id ) {
+		return;
+	}
+
+	$flash = dmc_exam_finalize_expired_session( $page_id );
+
+	if ( 'timeout' === $flash && empty( $_GET['exam'] ) ) {
+		$redirect = add_query_arg( 'exam', 'timeout', get_permalink( $page_id ) );
+		wp_safe_redirect( $redirect );
+		exit;
+	}
+}
+add_action( 'template_redirect', 'dmc_exam_bootstrap_session', 5 );
+
+/**
  * Enqueue exam assets.
  */
 function dmc_exam_enqueue_assets() {
@@ -60,32 +84,6 @@ function dmc_exam_enqueue_assets() {
 	$theme_dir = get_stylesheet_directory();
 	$theme_uri = get_stylesheet_directory_uri();
 	$js_file   = $theme_dir . '/assets/js/exam.js';
-	$hp_js     = $theme_dir . '/assets/js/homepage.js';
-
-	if ( file_exists( $hp_js ) ) {
-		wp_enqueue_script(
-			'dmc-homepage',
-			$theme_uri . '/assets/js/homepage.js',
-			[],
-			filemtime( $hp_js ),
-			true
-		);
-
-		$cart_count = function_exists( 'dmc_cart_item_count' ) ? dmc_cart_item_count() : 0;
-
-		wp_localize_script(
-			'dmc-homepage',
-			'dmcHomepage',
-			[
-				'cartCount'  => $cart_count,
-				'flashEnd'   => 0,
-				'searchUrl'  => home_url( '/' ),
-				'shopUrl'    => class_exists( 'WooCommerce' ) ? wc_get_page_permalink( 'shop' ) : home_url( '/' ),
-				'slideDelay' => 4000,
-				'slideSpeed' => 600,
-			]
-		);
-	}
 
 	wp_enqueue_script(
 		'dmc-exam',
@@ -96,26 +94,41 @@ function dmc_exam_enqueue_assets() {
 	);
 
 	$page_id     = get_the_ID();
-	$time_limit  = max( 0, (int) dmc_exam_field( 'exam_time_limit', 0 ) );
-	$questions   = dmc_exam_get_questions( $page_id );
-	$require_name = (bool) dmc_exam_field( 'exam_require_name', true );
+	$time_limit  = dmc_exam_get_time_limit_seconds( $page_id );
+	$session     = dmc_exam_get_session( $page_id );
+	$remaining   = 0;
+	$has_session = false;
+
+	if ( $session && ! dmc_exam_session_is_expired( $session ) ) {
+		$has_session = true;
+		$remaining   = $time_limit > 0 ? dmc_exam_remaining_seconds( $session ) : 0;
+	}
 
 	wp_localize_script(
 		'dmc-exam',
 		'dmcExam',
 		[
-			'ajaxUrl'      => admin_url( 'admin-ajax.php' ),
-			'nonce'        => wp_create_nonce( 'dmc_exam_submit' ),
-			'pageId'       => $page_id,
-			'timeLimitMin' => $time_limit,
-			'questionCount'=> count( $questions ),
-			'requireName'  => $require_name,
-			'messages'     => [
-				'required'      => __( 'Vui lòng trả lời tất cả câu hỏi trước khi nộp bài.', 'flatsome-child' ),
-				'nameRequired'  => __( 'Vui lòng nhập họ tên thí sinh.', 'flatsome-child' ),
-				'submitting'    => __( 'Đang gửi bài...', 'flatsome-child' ),
-				'submitError'   => __( 'Không gửi được bài. Vui lòng thử lại.', 'flatsome-child' ),
-				'timeUp'        => __( 'Hết giờ làm bài. Bài thi sẽ được nộp tự động.', 'flatsome-child' ),
+			'ajaxUrl'          => admin_url( 'admin-ajax.php' ),
+			'nonce'            => wp_create_nonce( 'dmc_exam' ),
+			'pageId'           => $page_id,
+			'timeLimitSeconds' => $time_limit,
+			'remainingSeconds' => $remaining,
+			'hasSession'       => $has_session,
+			'startedAt'        => $has_session ? (int) ( $session['started_at'] ?? 0 ) : 0,
+			'messages'         => [
+				'required'       => __( 'Vui lòng trả lời tất cả câu hỏi trước khi nộp bài.', 'flatsome-child' ),
+				'nameRequired'   => __( 'Vui lòng nhập họ tên thí sinh.', 'flatsome-child' ),
+				'phoneRequired'  => __( 'Vui lòng nhập số điện thoại.', 'flatsome-child' ),
+				'phoneInvalid'   => __( 'Số điện thoại không hợp lệ.', 'flatsome-child' ),
+				'deptRequired'   => __( 'Vui lòng nhập khoa.', 'flatsome-child' ),
+				'alreadyDone'    => __( 'Bạn đã làm bài thi này rồi. Không thể làm lại.', 'flatsome-child' ),
+				'submitting'     => __( 'Đang gửi bài...', 'flatsome-child' ),
+				'starting'       => __( 'Đang bắt đầu...', 'flatsome-child' ),
+				'submitError'    => __( 'Không gửi được bài. Vui lòng thử lại.', 'flatsome-child' ),
+				'startError'     => __( 'Không bắt đầu được bài thi. Vui lòng thử lại.', 'flatsome-child' ),
+				'timeUp'         => __( 'Hết giờ làm bài. Hệ thống sẽ nộp bài và kết thúc phiên.', 'flatsome-child' ),
+				'sessionExpired' => __( 'Phiên làm bài đã hết. Vui lòng đăng ký lại nếu còn quyền thi.', 'flatsome-child' ),
+				'doneRedirect'   => __( 'Đã nộp bài. Đang quay lại màn hình đăng ký...', 'flatsome-child' ),
 			],
 		]
 	);
@@ -138,10 +151,22 @@ function dmc_exam_body_class( $classes ) {
 add_filter( 'body_class', 'dmc_exam_body_class' );
 
 /**
- * Handle exam submission via AJAX.
+ * Validate phone length after normalize.
+ *
+ * @param string $phone Raw phone.
+ * @return bool
  */
-function dmc_exam_ajax_submit() {
-	check_ajax_referer( 'dmc_exam_submit', 'nonce' );
+function dmc_exam_is_valid_phone( $phone ) {
+	$normalized = dmc_exam_normalize_phone( $phone );
+
+	return strlen( $normalized ) >= 9 && strlen( $normalized ) <= 12;
+}
+
+/**
+ * AJAX: start exam session after gate form.
+ */
+function dmc_exam_ajax_start() {
+	check_ajax_referer( 'dmc_exam', 'nonce' );
 
 	$page_id = isset( $_POST['page_id'] ) ? absint( $_POST['page_id'] ) : 0;
 
@@ -152,13 +177,154 @@ function dmc_exam_ajax_submit() {
 		);
 	}
 
-	$candidate_name = isset( $_POST['candidate_name'] ) ? sanitize_text_field( wp_unslash( $_POST['candidate_name'] ) ) : '';
-	$require_name   = (bool) get_field( 'exam_require_name', $page_id );
+	$name       = isset( $_POST['candidate_name'] ) ? sanitize_text_field( wp_unslash( $_POST['candidate_name'] ) ) : '';
+	$phone      = isset( $_POST['candidate_phone'] ) ? sanitize_text_field( wp_unslash( $_POST['candidate_phone'] ) ) : '';
+	$department = isset( $_POST['candidate_department'] ) ? sanitize_text_field( wp_unslash( $_POST['candidate_department'] ) ) : '';
 
-	if ( $require_name && '' === trim( $candidate_name ) ) {
+	if ( '' === trim( $name ) ) {
 		wp_send_json_error(
 			[ 'message' => __( 'Vui lòng nhập họ tên thí sinh.', 'flatsome-child' ) ],
 			422
+		);
+	}
+
+	if ( '' === trim( $phone ) ) {
+		wp_send_json_error(
+			[ 'message' => __( 'Vui lòng nhập số điện thoại.', 'flatsome-child' ) ],
+			422
+		);
+	}
+
+	if ( ! dmc_exam_is_valid_phone( $phone ) ) {
+		wp_send_json_error(
+			[ 'message' => __( 'Số điện thoại không hợp lệ.', 'flatsome-child' ) ],
+			422
+		);
+	}
+
+	if ( '' === trim( $department ) ) {
+		wp_send_json_error(
+			[ 'message' => __( 'Vui lòng nhập khoa.', 'flatsome-child' ) ],
+			422
+		);
+	}
+
+	$questions = dmc_exam_get_questions( $page_id );
+
+	if ( empty( $questions ) ) {
+		wp_send_json_error(
+			[ 'message' => __( 'Bài thi chưa có câu hỏi.', 'flatsome-child' ) ],
+			400
+		);
+	}
+
+	if ( dmc_exam_find_existing_submission( $page_id, $phone, $name ) ) {
+		wp_send_json_error(
+			[ 'message' => __( 'Họ tên / số điện thoại này đã làm bài thi rồi. Không thể làm lại.', 'flatsome-child' ) ],
+			403
+		);
+	}
+
+	// Expired lock without cookie → treat as already finished.
+	if ( dmc_exam_finalize_expired_phone_lock( $page_id, $phone, $name, $department ) ) {
+		wp_send_json_error(
+			[ 'message' => __( 'Họ tên / số điện thoại này đã hết phiên làm bài. Không thể làm lại.', 'flatsome-child' ) ],
+			403
+		);
+	}
+
+	$existing_lock = dmc_exam_get_phone_lock( $page_id, $phone );
+
+	if ( $existing_lock ) {
+		$lock_expires = (int) ( $existing_lock['expires_at'] ?? 0 );
+
+		if ( $lock_expires <= 0 || time() < $lock_expires ) {
+			wp_send_json_error(
+				[ 'message' => __( 'Số điện thoại này đang có phiên làm bài. Không thể bắt đầu lại.', 'flatsome-child' ) ],
+				403
+			);
+		}
+	}
+
+	// Clear any stale browser session before starting fresh.
+	dmc_exam_clear_session();
+
+	$time_limit = dmc_exam_get_time_limit_seconds( $page_id );
+	$started_at = time();
+	$expires_at = $time_limit > 0 ? ( $started_at + $time_limit ) : ( $started_at + DAY_IN_SECONDS );
+
+	$session_data = [
+		'page_id'            => $page_id,
+		'name'               => $name,
+		'phone'              => $phone,
+		'phone_normalized'   => dmc_exam_normalize_phone( $phone ),
+		'department'         => $department,
+		'started_at'         => $started_at,
+		'time_limit_seconds' => $time_limit,
+		'time_limit_min'     => (int) floor( $time_limit / 60 ),
+		'expires_at'         => $expires_at,
+	];
+
+	dmc_exam_set_session( $session_data );
+	dmc_exam_set_phone_lock( $page_id, $session_data );
+
+	wp_send_json_success(
+		[
+			'message'          => __( 'Bắt đầu làm bài.', 'flatsome-child' ),
+			'remainingSeconds' => $time_limit,
+			'reload'           => true,
+		]
+	);
+}
+add_action( 'wp_ajax_dmc_exam_start', 'dmc_exam_ajax_start' );
+add_action( 'wp_ajax_nopriv_dmc_exam_start', 'dmc_exam_ajax_start' );
+
+/**
+ * Handle exam submission via AJAX.
+ */
+function dmc_exam_ajax_submit() {
+	check_ajax_referer( 'dmc_exam', 'nonce' );
+
+	$page_id = isset( $_POST['page_id'] ) ? absint( $_POST['page_id'] ) : 0;
+
+	if ( ! $page_id || 'page-templates/exam.php' !== get_page_template_slug( $page_id ) ) {
+		wp_send_json_error(
+			[ 'message' => __( 'Bài thi không hợp lệ.', 'flatsome-child' ) ],
+			400
+		);
+	}
+
+	$session = dmc_exam_get_session( $page_id );
+
+	if ( ! $session ) {
+		wp_send_json_error(
+			[
+				'message'  => __( 'Phiên làm bài không hợp lệ hoặc đã hết. Vui lòng đăng ký lại.', 'flatsome-child' ),
+				'redirect' => true,
+			],
+			403
+		);
+	}
+
+	$is_timeout = ! empty( $_POST['is_timeout'] );
+	$expired    = dmc_exam_session_is_expired( $session );
+
+	if ( $expired ) {
+		$is_timeout = true;
+	}
+
+	$candidate_name = (string) ( $session['name'] ?? '' );
+	$candidate_phone = (string) ( $session['phone'] ?? '' );
+	$candidate_dept  = (string) ( $session['department'] ?? '' );
+
+	if ( dmc_exam_find_existing_submission( $page_id, $candidate_phone, $candidate_name ) ) {
+		dmc_exam_clear_session();
+		wp_send_json_error(
+			[
+				'message'  => __( 'Bạn đã nộp bài trước đó. Không thể nộp lại.', 'flatsome-child' ),
+				'redirect' => true,
+			],
+			403
 		);
 	}
 
@@ -175,18 +341,20 @@ function dmc_exam_ajax_submit() {
 	$answers     = [];
 
 	if ( ! is_array( $raw_answers ) ) {
-		wp_send_json_error(
-			[ 'message' => __( 'Dữ liệu câu trả lời không hợp lệ.', 'flatsome-child' ) ],
-			400
-		);
+		$raw_answers = [];
 	}
 
 	foreach ( $questions as $question ) {
-		$qid = (string) $question['id'];
-		$key = 'q_' . $qid;
+		$qid    = (string) $question['id'];
+		$key    = 'q_' . $qid;
 		$choice = isset( $raw_answers[ $key ] ) ? strtolower( sanitize_text_field( $raw_answers[ $key ] ) ) : '';
 
-		if ( ! in_array( $choice, [ 'a', 'b', 'c', 'd' ], true ) ) {
+		if ( in_array( $choice, [ 'a', 'b', 'c', 'd' ], true ) ) {
+			$answers[ $qid ] = $choice;
+			continue;
+		}
+
+		if ( ! $is_timeout ) {
 			wp_send_json_error(
 				[
 					'message' => sprintf(
@@ -198,89 +366,50 @@ function dmc_exam_ajax_submit() {
 				422
 			);
 		}
-
-		$answers[ $qid ] = $choice;
 	}
 
-	$time_spent   = isset( $_POST['time_spent_seconds'] ) ? max( 0, absint( $_POST['time_spent_seconds'] ) ) : 0;
-	$client_ms    = isset( $_POST['client_submitted_unix_ms'] ) ? absint( $_POST['client_submitted_unix_ms'] ) : 0;
-	$client_label = isset( $_POST['client_submitted_label'] ) ? sanitize_text_field( wp_unslash( $_POST['client_submitted_label'] ) ) : '';
-	$server_now   = dmc_exam_now_with_ms();
-	$show_result  = (bool) get_field( 'exam_show_result', $page_id );
-	$score        = null;
-	$correct      = 0;
-	$gradable     = 0;
+	$started_at    = (int) ( $session['started_at'] ?? time() );
+	$time_spent    = max( 0, time() - $started_at );
+	$client_ms     = isset( $_POST['client_submitted_unix_ms'] ) ? absint( $_POST['client_submitted_unix_ms'] ) : 0;
+	$client_label  = isset( $_POST['client_submitted_label'] ) ? sanitize_text_field( wp_unslash( $_POST['client_submitted_label'] ) ) : '';
+	$time_spent_ms = isset( $_POST['time_spent_ms'] ) ? absint( $_POST['time_spent_ms'] ) : 0;
 
-	foreach ( $questions as $question ) {
-		$correct_key = $question['correct'];
-
-		if ( ! in_array( $correct_key, [ 'a', 'b', 'c', 'd' ], true ) ) {
-			continue;
-		}
-
-		++$gradable;
-
-		if ( ( $answers[ (string) $question['id'] ] ?? '' ) === $correct_key ) {
-			++$correct;
-		}
+	if ( $time_spent_ms <= 0 && $client_ms > 0 && $started_at > 0 ) {
+		$time_spent_ms = max( 0, $client_ms - ( $started_at * 1000 ) );
 	}
 
-	if ( $gradable > 0 ) {
-		$score = round( ( $correct / $gradable ) * 100, 1 );
+	if ( $time_spent_ms <= 0 && $time_spent > 0 ) {
+		$time_spent_ms = $time_spent * 1000;
 	}
 
-	$exam_title = get_the_title( $page_id );
-	$post_title = $candidate_name
-		? sprintf( '%s — %s', $candidate_name, $exam_title )
-		: sprintf( '%s — %s', $exam_title, $server_now['formatted'] );
-
-	$submission_id = wp_insert_post(
+	$result = dmc_exam_save_submission(
+		$page_id,
 		[
-			'post_type'   => 'dmc_exam_submission',
-			'post_status' => 'publish',
-			'post_title'  => $post_title,
+			'name'       => $candidate_name,
+			'phone'      => $candidate_phone,
+			'department' => $candidate_dept,
 		],
-		true
+		$answers,
+		$time_spent,
+		$is_timeout,
+		[
+			'label'         => $client_label,
+			'unix_ms'       => $client_ms,
+			'time_spent_ms' => $time_spent_ms,
+		]
 	);
 
-	if ( is_wp_error( $submission_id ) ) {
+	if ( is_wp_error( $result ) ) {
 		wp_send_json_error(
-			[ 'message' => __( 'Không lưu được kết quả.', 'flatsome-child' ) ],
+			[ 'message' => $result->get_error_message() ?: __( 'Không lưu được kết quả.', 'flatsome-child' ) ],
 			500
 		);
 	}
 
-	update_post_meta( $submission_id, 'exam_page_id', $page_id );
-	update_post_meta( $submission_id, 'exam_page_title', $exam_title );
-	update_post_meta( $submission_id, 'candidate_name', $candidate_name );
-	update_post_meta( $submission_id, 'answers', wp_json_encode( $answers ) );
-	update_post_meta( $submission_id, 'time_spent_seconds', $time_spent );
-	update_post_meta( $submission_id, 'submitted_at', $server_now['formatted'] );
-	update_post_meta( $submission_id, 'submitted_at_unix_ms', $server_now['unix_ms'] );
-	update_post_meta( $submission_id, 'submitted_at_iso', $server_now['iso'] );
-	update_post_meta( $submission_id, 'client_submitted_at', $client_label );
-	update_post_meta( $submission_id, 'client_submitted_unix_ms', $client_ms );
+	dmc_exam_clear_session();
+	dmc_exam_clear_phone_lock( $page_id, $candidate_phone );
 
-	if ( null !== $score ) {
-		update_post_meta( $submission_id, 'score_percent', $score );
-		update_post_meta( $submission_id, 'correct_count', $correct );
-		update_post_meta( $submission_id, 'gradable_count', $gradable );
-	}
-
-	$response = [
-		'message'      => __( 'Đã nộp bài thành công.', 'flatsome-child' ),
-		'submitted_at' => $server_now['formatted'],
-		'unix_ms'      => $server_now['unix_ms'],
-		'submission_id'=> $submission_id,
-	];
-
-	if ( $show_result && null !== $score ) {
-		$response['score'] = $score;
-		$response['correct_count'] = $correct;
-		$response['gradable_count'] = $gradable;
-	}
-
-	wp_send_json_success( $response );
+	wp_send_json_success( $result );
 }
 add_action( 'wp_ajax_dmc_exam_submit', 'dmc_exam_ajax_submit' );
 add_action( 'wp_ajax_nopriv_dmc_exam_submit', 'dmc_exam_ajax_submit' );
