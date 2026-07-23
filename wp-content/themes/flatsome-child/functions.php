@@ -7,6 +7,7 @@ require_once get_stylesheet_directory() . '/includes/account/setup.php';
 require_once get_stylesheet_directory() . '/includes/cart/setup.php';
 require_once get_stylesheet_directory() . '/includes/checkout/setup.php';
 require_once get_stylesheet_directory() . '/includes/exam/setup.php';
+require_once get_stylesheet_directory() . '/includes/about/setup.php';
 
 // Add custom Theme Functions here
 add_filter( 'woocommerce_product_tabs', 'woo_remove_product_tabs', 98 );
