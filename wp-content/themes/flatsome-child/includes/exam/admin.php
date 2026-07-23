@@ -61,14 +61,49 @@ function dmc_exam_admin_assets( $hook ) {
 			'dmcExamAdmin',
 			[
 				'messages' => [
-					'selectItems'  => __( 'Vui lòng chọn ít nhất một kết quả để xóa.', 'flatsome-child' ),
-					'confirmDelete'=> __( 'Bạn có chắc muốn xóa các kết quả đã chọn? Hành động này không thể hoàn tác.', 'flatsome-child' ),
+					'selectItems'   => __( 'Vui lòng chọn ít nhất một kết quả để xóa.', 'flatsome-child' ),
+					'confirmDelete' => __( 'Bạn có chắc muốn xóa các kết quả đã chọn? Hành động này không thể hoàn tác.', 'flatsome-child' ),
 				],
 			]
 		);
 	}
 }
 add_action( 'admin_enqueue_scripts', 'dmc_exam_admin_assets' );
+
+/**
+ * Enqueue import panel styles on exam page edit screen.
+ *
+ * @param string $hook Current admin hook.
+ */
+function dmc_exam_page_edit_assets( $hook ) {
+	if ( ! in_array( $hook, [ 'post.php', 'post-new.php' ], true ) ) {
+		return;
+	}
+
+	$screen = function_exists( 'get_current_screen' ) ? get_current_screen() : null;
+
+	if ( ! $screen || 'page' !== $screen->post_type ) {
+		return;
+	}
+
+	global $post;
+
+	if ( ! $post || ! dmc_exam_is_exam_page( $post->ID ) ) {
+		return;
+	}
+
+	$css = get_stylesheet_directory() . '/assets/css/exam-admin.css';
+
+	if ( file_exists( $css ) ) {
+		wp_enqueue_style(
+			'dmc-exam-admin',
+			get_stylesheet_directory_uri() . '/assets/css/exam-admin.css',
+			[],
+			filemtime( $css )
+		);
+	}
+}
+add_action( 'admin_enqueue_scripts', 'dmc_exam_page_edit_assets', 100 );
 
 /**
  * Handle Excel/CSV export before admin HTML is sent.
@@ -369,6 +404,16 @@ function dmc_exam_render_job_fair_list() {
 					</a>
 				<?php endforeach; ?>
 			</nav>
+		<?php endif; ?>
+
+		<?php dmc_exam_render_import_notices( 'job_fair' ); ?>
+
+		<?php if ( $page_id ) : ?>
+			<?php dmc_exam_render_import_panel( $page_id, 'job_fair' ); ?>
+		<?php elseif ( count( $exam_pages ) > 1 ) : ?>
+			<div class="dmc-jf__import dmc-jf__import--hint">
+				<p><?php esc_html_e( 'Chọn một sự kiện/bài thi ở tab phía trên để import câu hỏi hoặc tải file mẫu.', 'flatsome-child' ); ?></p>
+			</div>
 		<?php endif; ?>
 
 		<?php

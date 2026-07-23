@@ -319,6 +319,17 @@ body.dmc-exam-page {
   margin-right: 6px;
 }
 
+.dmc-exam-question__link {
+  color: $dmc-blue;
+  text-decoration: underline;
+  word-break: break-word;
+
+  &:hover,
+  &:focus {
+    color: $dmc-blue2;
+  }
+}
+
 .dmc-exam-question__answers {
   display: grid;
   gap: 10px;

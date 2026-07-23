@@ -138,8 +138,8 @@ if ( 'done' === $flash ) {
 						name="candidate_phone"
 						class="dmc-exam-form__input"
 						autocomplete="tel"
-						inputmode="numeric"
-						placeholder="<?php esc_attr_e( 'VD: 0912345678', 'flatsome-child' ); ?>"
+						inputmode="tel"
+						placeholder="<?php esc_attr_e( 'VD: 0943980279 hoặc +84943980279', 'flatsome-child' ); ?>"
 						required
 					>
 				</div>
@@ -177,7 +177,7 @@ if ( 'done' === $flash ) {
 					<article class="dmc-exam-question" data-question-id="<?php echo esc_attr( (string) $question['id'] ); ?>">
 						<h2 class="dmc-exam-question__title">
 							<span class="dmc-exam-question__number"><?php echo esc_html( (string) $display_number ); ?>.</span>
-							<?php echo esc_html( $question['text'] ); ?>
+							<?php echo dmc_exam_format_question_text( $question['text'] ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
 						</h2>
 
 						<div class="dmc-exam-question__answers">

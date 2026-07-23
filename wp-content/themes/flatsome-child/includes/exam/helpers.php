@@ -59,8 +59,9 @@ function dmc_exam_get_questions( $page_id = 0 ) {
 	}
 
 	$questions = [];
+	$number    = 0;
 
-	foreach ( $rows as $index => $row ) {
+	foreach ( $rows as $row ) {
 		if ( ! is_array( $row ) ) {
 			continue;
 		}
@@ -71,8 +72,10 @@ function dmc_exam_get_questions( $page_id = 0 ) {
 			continue;
 		}
 
+		++$number;
+
 		$questions[] = [
-			'id'      => $index + 1,
+			'id'      => $number,
 			'text'    => $text,
 			'answers' => [
 				'a' => trim( (string) ( $row['answer_a'] ?? '' ) ),
@@ -85,6 +88,48 @@ function dmc_exam_get_questions( $page_id = 0 ) {
 	}
 
 	return $questions;
+}
+
+/**
+ * Format question text: escape HTML and auto-link http(s) URLs in a new tab.
+ *
+ * @param string $text Raw question text.
+ * @return string Safe HTML.
+ */
+function dmc_exam_format_question_text( $text ) {
+	$text = trim( (string) $text );
+
+	if ( '' === $text ) {
+		return '';
+	}
+
+	$escaped = esc_html( $text );
+
+	$linked = preg_replace_callback(
+		'#https?://[^\s<>"\']+#i',
+		static function ( $matches ) {
+			$url = rtrim( $matches[0], '.,;:!?)]' );
+
+			return sprintf(
+				'<a href="%s" target="_blank" rel="noopener noreferrer" class="dmc-exam-question__link">%s</a>',
+				esc_url( $url ),
+				esc_html( $url )
+			);
+		},
+		$escaped
+	);
+
+	return wp_kses(
+		$linked,
+		[
+			'a' => [
+				'href'   => true,
+				'target' => true,
+				'rel'    => true,
+				'class'  => true,
+			],
+		]
+	);
 }
 
 /**
@@ -124,7 +169,14 @@ function dmc_exam_pick_random_question_ids( array $questions, $count ) {
 		},
 		$questions
 	);
-	$ids = array_values( array_filter( $ids ) );
+	$ids = array_values(
+		array_filter(
+			$ids,
+			static function ( $id ) {
+				return (int) $id > 0;
+			}
+		)
+	);
 
 	if ( empty( $ids ) ) {
 		return [];
@@ -212,6 +264,95 @@ function dmc_exam_get_submission_questions( $submission_id ) {
 	}
 
 	return dmc_exam_questions_by_ids( $all, array_map( 'intval', $stored_ids ), true );
+}
+
+/**
+ * Whether a phone lock is still within exam time.
+ *
+ * @param array<string, mixed>|null $lock Lock payload.
+ * @return bool
+ */
+function dmc_exam_phone_lock_is_active( $lock ) {
+	if ( ! is_array( $lock ) ) {
+		return false;
+	}
+
+	$expires_at = (int) ( $lock['expires_at'] ?? 0 );
+
+	return $expires_at <= 0 || time() < $expires_at;
+}
+
+/**
+ * Whether lock belongs to the same candidate.
+ *
+ * @param array<string, mixed> $lock Lock payload.
+ * @param string               $name Candidate name.
+ * @param string               $phone Candidate phone.
+ * @return bool
+ */
+function dmc_exam_lock_matches_candidate( array $lock, $name, $phone ) {
+	$lock_phone = dmc_exam_normalize_phone( (string) ( $lock['phone'] ?? '' ) );
+	$form_phone = dmc_exam_normalize_phone( $phone );
+
+	if ( '' === $lock_phone || $lock_phone !== $form_phone ) {
+		return false;
+	}
+
+	$lock_name = mb_strtolower( trim( (string) ( $lock['name'] ?? '' ) ) );
+	$form_name = mb_strtolower( trim( (string) $name ) );
+
+	return '' === $lock_name || $lock_name === $form_name;
+}
+
+/**
+ * Ensure lock/session payload has question IDs for the attempt.
+ *
+ * @param int                  $page_id Exam page ID.
+ * @param array<string, mixed> $data    Session or lock payload.
+ * @return array<string, mixed>
+ */
+function dmc_exam_ensure_session_question_ids( $page_id, array $data ) {
+	if ( ! empty( $data['question_ids'] ) && is_array( $data['question_ids'] ) ) {
+		$data['question_ids'] = array_values( array_map( 'intval', $data['question_ids'] ) );
+		return $data;
+	}
+
+	$questions = dmc_exam_get_questions( $page_id );
+
+	if ( empty( $questions ) ) {
+		return $data;
+	}
+
+	$data['question_ids'] = dmc_exam_pick_random_question_ids(
+		$questions,
+		dmc_exam_get_questions_per_attempt( $page_id )
+	);
+
+	return $data;
+}
+
+/**
+ * Resume an in-progress attempt from phone lock data.
+ *
+ * @param int                  $page_id Exam page ID.
+ * @param array<string, mixed> $lock    Lock payload.
+ * @return array<string, mixed>|null
+ */
+function dmc_exam_resume_session_from_lock( $page_id, array $lock ) {
+	if ( dmc_exam_session_is_expired( $lock ) ) {
+		return null;
+	}
+
+	$lock = dmc_exam_ensure_session_question_ids( $page_id, $lock );
+
+	if ( empty( $lock['question_ids'] ) ) {
+		return null;
+	}
+
+	dmc_exam_set_session( $lock );
+	dmc_exam_set_phone_lock( $page_id, $lock );
+
+	return $lock;
 }
 
 /**
@@ -548,6 +689,28 @@ function dmc_exam_normalize_phone( $phone ) {
 	}
 
 	return $digits;
+}
+
+/**
+ * Whether a candidate phone matches allowed VN formats.
+ *
+ * Accepts: 0943980279 (10 digits) or +84943980279 (+84 + 9 digits).
+ *
+ * @param string $phone Raw phone.
+ * @return bool
+ */
+function dmc_exam_is_valid_phone( $phone ) {
+	$compact = preg_replace( '/\s+/', '', trim( (string) $phone ) );
+
+	if ( '' === $compact ) {
+		return false;
+	}
+
+	if ( preg_match( '/^0[0-9]{9}$/', $compact ) ) {
+		return true;
+	}
+
+	return (bool) preg_match( '/^\+84[0-9]{9}$/', $compact );
 }
 
 /**

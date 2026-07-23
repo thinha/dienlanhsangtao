@@ -62,6 +62,41 @@
 		window.location.replace(url.toString());
 	}
 
+	function parseJsonResponse(response, fallbackMessage) {
+		var message = fallbackMessage || config.messages.startError || 'Có lỗi xảy ra.';
+
+		return response
+			.text()
+			.then(function (text) {
+				if (!text) {
+					throw new Error(message);
+				}
+
+				try {
+					return JSON.parse(text);
+				} catch (error) {
+					throw new Error(message);
+				}
+			})
+			.then(function (result) {
+				if (!response.ok && result && result.data && result.data.message) {
+					throw new Error(result.data.message);
+				}
+
+				return result;
+			});
+	}
+
+	function isValidPhone(phone) {
+		var compact = String(phone || '').replace(/\s+/g, '');
+
+		if (/^0[0-9]{9}$/.test(compact)) {
+			return true;
+		}
+
+		return /^\+84[0-9]{9}$/.test(compact);
+	}
+
 	function initGate() {
 		if (!gateForm) {
 			return;
@@ -103,6 +138,18 @@
 				return;
 			}
 
+			if (!isValidPhone(phone)) {
+				showNotice(
+					noticeEl,
+					config.messages.phoneInvalid ||
+						'Số điện thoại phải là 10 số (VD: 0943980279) hoặc dạng +84 (VD: +84943980279).'
+				);
+				if (phoneInput) {
+					phoneInput.focus();
+				}
+				return;
+			}
+
 			if (!department) {
 				showNotice(noticeEl, config.messages.deptRequired || 'Vui lòng nhập khoa.');
 				if (deptInput) {
@@ -131,9 +178,7 @@
 				body: payload,
 				credentials: 'same-origin',
 			})
-				.then(function (response) {
-					return response.json();
-				})
+				.then(parseJsonResponse)
 				.then(function (result) {
 					if (!result || !result.success) {
 						throw new Error(
@@ -293,7 +338,7 @@
 				credentials: 'same-origin',
 			})
 				.then(function (response) {
-					return response.json();
+					return parseJsonResponse(response, config.messages.submitError);
 				})
 				.then(function (result) {
 					if (!result || !result.success) {

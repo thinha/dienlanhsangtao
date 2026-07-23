@@ -192,6 +192,72 @@
   margin: 0;
 }
 
+.dmc-jf__import {
+  margin-bottom: 18px;
+  padding: 18px 20px;
+  border: 1px solid #d8e0ef;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 8px 22px rgba(32, 61, 114, 0.05);
+}
+
+.dmc-jf__import--hint {
+  color: #65708b;
+}
+
+.dmc-jf__import-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 14px;
+}
+
+.dmc-jf__import-head h2 {
+  margin: 0 0 6px;
+  font-size: 18px;
+}
+
+.dmc-jf__import-head p {
+  margin: 0;
+  color: #65708b;
+}
+
+.dmc-jf__import-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.dmc-jf__import-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 14px;
+}
+
+.dmc-jf__import-field label {
+  display: block;
+  margin-bottom: 6px;
+  font-weight: 600;
+}
+
+.dmc-jf__import-field input[type="file"],
+.dmc-jf__import-field select {
+  width: 100%;
+  max-width: 100%;
+}
+
+.dmc-jf__import-field .description {
+  margin: 6px 0 0;
+  color: #65708b;
+}
+
+.dmc-jf__import-actions {
+  margin: 14px 0 0;
+}
+
 .dmc-jf__score {
   font-weight: 700;
   color: #0344a6;

@@ -11,6 +11,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 require_once get_stylesheet_directory() . '/includes/exam/helpers.php';
 require_once get_stylesheet_directory() . '/includes/exam/acf-fields.php';
+require_once get_stylesheet_directory() . '/includes/exam/import.php';
 require_once get_stylesheet_directory() . '/includes/exam/admin.php';
 
 /**
@@ -93,6 +94,13 @@ function dmc_exam_enqueue_assets() {
 		true
 	);
 
+	wp_register_style( 'dmc-exam', false, [], '1.0.0' );
+	wp_enqueue_style( 'dmc-exam' );
+	wp_add_inline_style(
+		'dmc-exam',
+		'.dmc-exam-question__link{color:#1565c0;text-decoration:underline;word-break:break-word}.dmc-exam-question__link:hover,.dmc-exam-question__link:focus{color:#0d47a1}'
+	);
+
 	$page_id     = get_the_ID();
 	$time_limit  = dmc_exam_get_time_limit_seconds( $page_id );
 	$session     = dmc_exam_get_session( $page_id );
@@ -119,7 +127,7 @@ function dmc_exam_enqueue_assets() {
 				'required'       => __( 'Vui lòng trả lời tất cả câu hỏi trước khi nộp bài.', 'flatsome-child' ),
 				'nameRequired'   => __( 'Vui lòng nhập họ tên thí sinh.', 'flatsome-child' ),
 				'phoneRequired'  => __( 'Vui lòng nhập số điện thoại.', 'flatsome-child' ),
-				'phoneInvalid'   => __( 'Số điện thoại không hợp lệ.', 'flatsome-child' ),
+				'phoneInvalid'   => __( 'Số điện thoại phải là 10 số (VD: 0943980279) hoặc dạng +84 (VD: +84943980279).', 'flatsome-child' ),
 				'deptRequired'   => __( 'Vui lòng nhập khoa.', 'flatsome-child' ),
 				'alreadyDone'    => __( 'Bạn đã làm bài thi này rồi. Không thể làm lại.', 'flatsome-child' ),
 				'submitting'     => __( 'Đang gửi bài...', 'flatsome-child' ),
@@ -151,18 +159,6 @@ function dmc_exam_body_class( $classes ) {
 add_filter( 'body_class', 'dmc_exam_body_class' );
 
 /**
- * Validate phone length after normalize.
- *
- * @param string $phone Raw phone.
- * @return bool
- */
-function dmc_exam_is_valid_phone( $phone ) {
-	$normalized = dmc_exam_normalize_phone( $phone );
-
-	return strlen( $normalized ) >= 9 && strlen( $normalized ) <= 12;
-}
-
-/**
  * AJAX: start exam session after gate form.
  */
 function dmc_exam_ajax_start() {
@@ -170,7 +166,7 @@ function dmc_exam_ajax_start() {
 
 	$page_id = isset( $_POST['page_id'] ) ? absint( $_POST['page_id'] ) : 0;
 
-	if ( ! $page_id || 'page-templates/exam.php' !== get_page_template_slug( $page_id ) ) {
+	if ( ! $page_id || ! dmc_exam_is_exam_page( $page_id ) ) {
 		wp_send_json_error(
 			[ 'message' => __( 'Bài thi không hợp lệ.', 'flatsome-child' ) ],
 			400
@@ -233,12 +229,40 @@ function dmc_exam_ajax_start() {
 		);
 	}
 
-	$existing_lock = dmc_exam_get_phone_lock( $page_id, $phone );
+	$existing_lock   = dmc_exam_get_phone_lock( $page_id, $phone );
+	$current_session = dmc_exam_get_session( $page_id );
+	$time_limit      = dmc_exam_get_time_limit_seconds( $page_id );
 
-	if ( $existing_lock ) {
-		$lock_expires = (int) ( $existing_lock['expires_at'] ?? 0 );
+	if ( $current_session && ! dmc_exam_session_is_expired( $current_session ) ) {
+		if ( dmc_exam_lock_matches_candidate( $current_session, $name, $phone ) ) {
+			wp_send_json_success(
+				[
+					'message'          => __( 'Tiếp tục làm bài.', 'flatsome-child' ),
+					'remainingSeconds' => $time_limit > 0 ? dmc_exam_remaining_seconds( $current_session ) : 0,
+					'reload'           => true,
+				]
+			);
+		}
 
-		if ( $lock_expires <= 0 || time() < $lock_expires ) {
+		dmc_exam_clear_session();
+	}
+
+	if ( $existing_lock && dmc_exam_phone_lock_is_active( $existing_lock ) ) {
+		if ( dmc_exam_lock_matches_candidate( $existing_lock, $name, $phone ) ) {
+			$resumed = dmc_exam_resume_session_from_lock( $page_id, $existing_lock );
+
+			if ( $resumed ) {
+				wp_send_json_success(
+					[
+						'message'          => __( 'Tiếp tục làm bài.', 'flatsome-child' ),
+						'remainingSeconds' => $time_limit > 0 ? dmc_exam_remaining_seconds( $resumed ) : 0,
+						'reload'           => true,
+					]
+				);
+			}
+
+			dmc_exam_clear_phone_lock( $page_id, $phone );
+		} else {
 			wp_send_json_error(
 				[ 'message' => __( 'Số điện thoại này đang có phiên làm bài. Không thể bắt đầu lại.', 'flatsome-child' ) ],
 				403
@@ -246,10 +270,13 @@ function dmc_exam_ajax_start() {
 		}
 	}
 
+	if ( $existing_lock ) {
+		dmc_exam_clear_phone_lock( $page_id, $phone );
+	}
+
 	// Clear any stale browser session before starting fresh.
 	dmc_exam_clear_session();
 
-	$time_limit = dmc_exam_get_time_limit_seconds( $page_id );
 	$started_at = time();
 	$expires_at = $time_limit > 0 ? ( $started_at + $time_limit ) : ( $started_at + DAY_IN_SECONDS );
 	$per_attempt = dmc_exam_get_questions_per_attempt( $page_id );
@@ -297,7 +324,7 @@ function dmc_exam_ajax_submit() {
 
 	$page_id = isset( $_POST['page_id'] ) ? absint( $_POST['page_id'] ) : 0;
 
-	if ( ! $page_id || 'page-templates/exam.php' !== get_page_template_slug( $page_id ) ) {
+	if ( ! $page_id || ! dmc_exam_is_exam_page( $page_id ) ) {
 		wp_send_json_error(
 			[ 'message' => __( 'Bài thi không hợp lệ.', 'flatsome-child' ) ],
 			400
