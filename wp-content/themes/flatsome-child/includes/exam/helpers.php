@@ -12,6 +12,9 @@ if ( ! defined( 'ABSPATH' ) ) {
 /** Cookie name for active exam attempt. */
 const DMC_EXAM_SESSION_COOKIE = 'dmc_exam_sid';
 
+/** Default number of random questions per attempt. */
+const DMC_EXAM_DEFAULT_QUESTIONS_PER_ATTEMPT = 5;
+
 /**
  * Whether current request uses exam page template.
  */
@@ -82,6 +85,133 @@ function dmc_exam_get_questions( $page_id = 0 ) {
 	}
 
 	return $questions;
+}
+
+/**
+ * How many questions each candidate receives per attempt.
+ *
+ * @param int $page_id Exam page ID.
+ * @return int
+ */
+function dmc_exam_get_questions_per_attempt( $page_id = 0 ) {
+	$page_id = $page_id ? (int) $page_id : get_the_ID();
+
+	if ( ! $page_id || ! function_exists( 'get_field' ) ) {
+		return DMC_EXAM_DEFAULT_QUESTIONS_PER_ATTEMPT;
+	}
+
+	$count = (int) get_field( 'exam_questions_per_attempt', $page_id );
+
+	if ( $count <= 0 ) {
+		return DMC_EXAM_DEFAULT_QUESTIONS_PER_ATTEMPT;
+	}
+
+	return $count;
+}
+
+/**
+ * Pick random question IDs from a question pool.
+ *
+ * @param array<int, array<string, mixed>> $questions Question pool.
+ * @param int                              $count     Questions to pick.
+ * @return int[]
+ */
+function dmc_exam_pick_random_question_ids( array $questions, $count ) {
+	$count = max( 1, (int) $count );
+	$ids   = array_map(
+		static function ( $question ) {
+			return (int) ( $question['id'] ?? 0 );
+		},
+		$questions
+	);
+	$ids = array_values( array_filter( $ids ) );
+
+	if ( empty( $ids ) ) {
+		return [];
+	}
+
+	shuffle( $ids );
+
+	return array_slice( $ids, 0, min( $count, count( $ids ) ) );
+}
+
+/**
+ * Filter questions by ID list and optionally assign display numbers.
+ *
+ * @param array<int, array<string, mixed>> $questions       Full pool.
+ * @param int[]                            $ids             Question IDs in display order.
+ * @param bool                             $renumber_display Whether to set display_number 1..n.
+ * @return array<int, array<string, mixed>>
+ */
+function dmc_exam_questions_by_ids( array $questions, array $ids, $renumber_display = false ) {
+	$map = [];
+
+	foreach ( $questions as $question ) {
+		$map[ (int) $question['id'] ] = $question;
+	}
+
+	$picked  = [];
+	$display = 1;
+
+	foreach ( $ids as $id ) {
+		$id = (int) $id;
+
+		if ( ! isset( $map[ $id ] ) ) {
+			continue;
+		}
+
+		$question = $map[ $id ];
+
+		if ( $renumber_display ) {
+			$question['display_number'] = $display++;
+		}
+
+		$picked[] = $question;
+	}
+
+	return $picked;
+}
+
+/**
+ * Questions assigned to an active session (random subset per candidate).
+ *
+ * @param int                  $page_id Exam page ID.
+ * @param array<string, mixed> $session Session payload.
+ * @return array<int, array<string, mixed>>
+ */
+function dmc_exam_get_session_questions( $page_id, array $session ) {
+	$page_id     = (int) $page_id;
+	$all         = dmc_exam_get_questions( $page_id );
+	$question_ids = [];
+
+	if ( ! empty( $session['question_ids'] ) && is_array( $session['question_ids'] ) ) {
+		$question_ids = array_map( 'intval', $session['question_ids'] );
+	}
+
+	if ( empty( $question_ids ) ) {
+		return $all;
+	}
+
+	return dmc_exam_questions_by_ids( $all, $question_ids, true );
+}
+
+/**
+ * Questions shown for a saved submission (attempt subset or full pool).
+ *
+ * @param int $submission_id Submission post ID.
+ * @return array<int, array<string, mixed>>
+ */
+function dmc_exam_get_submission_questions( $submission_id ) {
+	$submission_id = (int) $submission_id;
+	$page_id         = (int) get_post_meta( $submission_id, 'exam_page_id', true );
+	$all             = $page_id ? dmc_exam_get_questions( $page_id ) : [];
+	$stored_ids      = json_decode( (string) get_post_meta( $submission_id, 'attempt_question_ids', true ), true );
+
+	if ( ! is_array( $stored_ids ) || empty( $stored_ids ) ) {
+		return $all;
+	}
+
+	return dmc_exam_questions_by_ids( $all, array_map( 'intval', $stored_ids ), true );
 }
 
 /**
@@ -697,6 +827,9 @@ function dmc_exam_finalize_expired_phone_lock( $page_id, $phone, $name = '', $de
 	$department = $department ?: (string) ( $lock['department'] ?? '' );
 
 	if ( ! dmc_exam_find_existing_submission( $page_id, $phone, $name ) ) {
+		$limit_seconds = dmc_exam_session_time_limit_seconds( $lock );
+		$questions     = dmc_exam_get_session_questions( $page_id, $lock );
+
 		dmc_exam_save_submission(
 			$page_id,
 			[
@@ -706,7 +839,9 @@ function dmc_exam_finalize_expired_phone_lock( $page_id, $phone, $name = '', $de
 			],
 			[],
 			$limit_seconds,
-			true
+			true,
+			[],
+			$questions
 		);
 	}
 
@@ -778,11 +913,15 @@ function dmc_exam_find_existing_submission( $page_id, $phone, $name = '' ) {
  * @param int                  $time_spent  Seconds spent.
  * @param bool                 $is_timeout  Timed out flag.
  * @param array<string, mixed> $client      Optional client timestamps.
+ * @param array<int, array<string, mixed>>|null $questions Questions for this attempt.
  * @return array<string, mixed>|WP_Error
  */
-function dmc_exam_save_submission( $page_id, array $candidate, array $answers, $time_spent = 0, $is_timeout = false, array $client = [] ) {
-	$page_id  = (int) $page_id;
-	$questions = dmc_exam_get_questions( $page_id );
+function dmc_exam_save_submission( $page_id, array $candidate, array $answers, $time_spent = 0, $is_timeout = false, array $client = [], $questions = null ) {
+	$page_id = (int) $page_id;
+
+	if ( null === $questions || ! is_array( $questions ) || empty( $questions ) ) {
+		$questions = dmc_exam_get_questions( $page_id );
+	}
 
 	if ( ! $page_id || empty( $questions ) ) {
 		return new WP_Error( 'invalid_exam', __( 'Bài thi không hợp lệ.', 'flatsome-child' ) );
@@ -842,6 +981,11 @@ function dmc_exam_save_submission( $page_id, array $candidate, array $answers, $
 	update_post_meta( $submission_id, 'candidate_phone_normalized', $phone_normalized );
 	update_post_meta( $submission_id, 'candidate_department', $candidate_dept );
 	update_post_meta( $submission_id, 'answers', wp_json_encode( $answers ) );
+	update_post_meta(
+		$submission_id,
+		'attempt_question_ids',
+		wp_json_encode( array_map( 'intval', array_column( $questions, 'id' ) ) )
+	);
 	$time_spent_ms = absint( $client['time_spent_ms'] ?? 0 );
 
 	if ( $time_spent_ms <= 0 && $time_spent > 0 ) {
@@ -916,6 +1060,7 @@ function dmc_exam_finalize_expired_session( $page_id ) {
 
 	if ( ! dmc_exam_find_existing_submission( $page_id, $phone, $name ) ) {
 		$limit_seconds = dmc_exam_session_time_limit_seconds( $session );
+		$questions     = dmc_exam_get_session_questions( $page_id, $session );
 
 		dmc_exam_save_submission(
 			$page_id,
@@ -926,7 +1071,9 @@ function dmc_exam_finalize_expired_session( $page_id ) {
 			],
 			[],
 			$limit_seconds,
-			true
+			true,
+			[],
+			$questions
 		);
 	}
 

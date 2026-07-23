@@ -12,9 +12,10 @@ if ( ! defined( 'ABSPATH' ) ) {
 $page_id       = get_the_ID();
 $subtitle      = (string) dmc_exam_field( 'exam_subtitle', '' );
 $time_limit    = dmc_exam_get_time_limit_seconds( $page_id );
-$questions     = dmc_exam_get_questions( $page_id );
+$pool_questions = dmc_exam_get_questions( $page_id );
 $session       = dmc_exam_get_session( $page_id );
 $has_session   = $session && ! dmc_exam_session_is_expired( $session );
+$questions     = $has_session ? dmc_exam_get_session_questions( $page_id, $session ) : $pool_questions;
 $remaining     = $has_session && $time_limit > 0 ? dmc_exam_remaining_seconds( $session ) : $time_limit;
 $answer_labels = [
 	'a' => 'A',
@@ -92,7 +93,7 @@ if ( 'done' === $flash ) {
 		<?php endif; ?>
 	</header>
 
-	<?php if ( empty( $questions ) ) : ?>
+	<?php if ( empty( $pool_questions ) ) : ?>
 		<div class="dmc-exam-empty">
 			<p><?php esc_html_e( 'Bài thi chưa có câu hỏi. Vui lòng thêm câu hỏi trong phần Cấu hình bài thi.', 'flatsome-child' ); ?></p>
 		</div>
@@ -172,9 +173,10 @@ if ( 'done' === $flash ) {
 		<form id="dmc-exam-form" class="dmc-exam-form" novalidate>
 			<div class="dmc-exam-questions">
 				<?php foreach ( $questions as $question ) : ?>
+					<?php $display_number = (int) ( $question['display_number'] ?? $question['id'] ); ?>
 					<article class="dmc-exam-question" data-question-id="<?php echo esc_attr( (string) $question['id'] ); ?>">
 						<h2 class="dmc-exam-question__title">
-							<span class="dmc-exam-question__number"><?php echo esc_html( (string) $question['id'] ); ?>.</span>
+							<span class="dmc-exam-question__number"><?php echo esc_html( (string) $display_number ); ?>.</span>
 							<?php echo esc_html( $question['text'] ); ?>
 						</h2>
 

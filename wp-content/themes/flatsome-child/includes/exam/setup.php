@@ -252,6 +252,15 @@ function dmc_exam_ajax_start() {
 	$time_limit = dmc_exam_get_time_limit_seconds( $page_id );
 	$started_at = time();
 	$expires_at = $time_limit > 0 ? ( $started_at + $time_limit ) : ( $started_at + DAY_IN_SECONDS );
+	$per_attempt = dmc_exam_get_questions_per_attempt( $page_id );
+	$question_ids = dmc_exam_pick_random_question_ids( $questions, $per_attempt );
+
+	if ( empty( $question_ids ) ) {
+		wp_send_json_error(
+			[ 'message' => __( 'Bài thi chưa có câu hỏi.', 'flatsome-child' ) ],
+			400
+		);
+	}
 
 	$session_data = [
 		'page_id'            => $page_id,
@@ -263,6 +272,7 @@ function dmc_exam_ajax_start() {
 		'time_limit_seconds' => $time_limit,
 		'time_limit_min'     => (int) floor( $time_limit / 60 ),
 		'expires_at'         => $expires_at,
+		'question_ids'       => $question_ids,
 	];
 
 	dmc_exam_set_session( $session_data );
@@ -328,7 +338,7 @@ function dmc_exam_ajax_submit() {
 		);
 	}
 
-	$questions = dmc_exam_get_questions( $page_id );
+	$questions = dmc_exam_get_session_questions( $page_id, $session );
 
 	if ( empty( $questions ) ) {
 		wp_send_json_error(
@@ -345,9 +355,10 @@ function dmc_exam_ajax_submit() {
 	}
 
 	foreach ( $questions as $question ) {
-		$qid    = (string) $question['id'];
-		$key    = 'q_' . $qid;
-		$choice = isset( $raw_answers[ $key ] ) ? strtolower( sanitize_text_field( $raw_answers[ $key ] ) ) : '';
+		$qid            = (string) $question['id'];
+		$key            = 'q_' . $qid;
+		$display_number = (int) ( $question['display_number'] ?? $question['id'] );
+		$choice         = isset( $raw_answers[ $key ] ) ? strtolower( sanitize_text_field( $raw_answers[ $key ] ) ) : '';
 
 		if ( in_array( $choice, [ 'a', 'b', 'c', 'd' ], true ) ) {
 			$answers[ $qid ] = $choice;
@@ -360,7 +371,7 @@ function dmc_exam_ajax_submit() {
 					'message' => sprintf(
 						/* translators: %d: question number */
 						__( 'Vui lòng chọn đáp án cho câu %d.', 'flatsome-child' ),
-						$question['id']
+						$display_number
 					),
 				],
 				422
@@ -396,7 +407,8 @@ function dmc_exam_ajax_submit() {
 			'label'         => $client_label,
 			'unix_ms'       => $client_ms,
 			'time_spent_ms' => $time_spent_ms,
-		]
+		],
+		$questions
 	);
 
 	if ( is_wp_error( $result ) ) {

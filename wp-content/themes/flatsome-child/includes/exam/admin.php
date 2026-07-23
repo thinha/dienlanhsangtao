@@ -589,7 +589,7 @@ function dmc_exam_render_job_fair_detail( $submission_id ) {
 	}
 
 	$row       = dmc_exam_get_submission_row( $submission_id );
-	$questions = $row['page_id'] ? dmc_exam_get_questions( $row['page_id'] ) : [];
+	$questions = dmc_exam_get_submission_questions( $submission_id );
 	$answers   = is_array( $row['answers'] ) ? $row['answers'] : [];
 	$back_args = [ 'page' => 'dmc-job-fair' ];
 
@@ -688,7 +688,7 @@ function dmc_exam_render_job_fair_detail( $submission_id ) {
 						?>
 						<li class="dmc-jf-q <?php echo esc_attr( $status_class ); ?>">
 							<div class="dmc-jf-q__head">
-								<span class="dmc-jf-q__num"><?php echo esc_html( (string) $question['id'] ); ?></span>
+								<span class="dmc-jf-q__num"><?php echo esc_html( (string) ( $question['display_number'] ?? $question['id'] ) ); ?></span>
 								<div class="dmc-jf-q__meta">
 									<strong class="dmc-jf-q__title"><?php echo esc_html( $question['text'] ); ?></strong>
 									<span class="dmc-jf-q__status">

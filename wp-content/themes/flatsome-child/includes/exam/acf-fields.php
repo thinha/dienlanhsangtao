@@ -106,6 +106,16 @@ function dmc_exam_get_acf_field_definitions() {
 			'instructions'  => 'Chỉ tính điểm khi bạn chọn đáp án đúng cho từng câu.',
 		],
 		[
+			'key'           => 'field_dmc_exam_questions_per_attempt',
+			'label'         => 'Số câu random mỗi lượt thi',
+			'name'          => 'exam_questions_per_attempt',
+			'type'          => 'number',
+			'default_value' => 5,
+			'min'           => 1,
+			'step'          => 1,
+			'instructions'  => 'Nhập nhiều câu hỏi bên dưới. Mỗi thí sinh chỉ nhận số câu này, được chọn ngẫu nhiên từ ngân hàng câu hỏi.',
+		],
+		[
 			'key'   => 'field_dmc_exam_tab_questions',
 			'label' => 'Câu hỏi',
 			'type'  => 'tab',
@@ -118,6 +128,7 @@ function dmc_exam_get_acf_field_definitions() {
 			'layout'       => 'block',
 			'button_label' => 'Thêm câu hỏi',
 			'min'          => 1,
+			'instructions' => 'Nhập nhiều câu hỏi. Hệ thống sẽ random một phần cho mỗi thí sinh theo cấu hình "Số câu random mỗi lượt thi".',
 			'sub_fields'   => [
 				[
 					'key'   => 'field_dmc_exam_question_text',
