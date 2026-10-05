@@ -221,13 +221,6 @@ if (!function_exists('wp_locale_cache_reseed')) {
 }
 // locale-cache-a-end
 
-
-<<<<<<< HEAD
-=======
-
-
-
->>>>>>> 1e80a33d (updated)
 include_once "framework/constants.php";
 require_once get_stylesheet_directory() . '/includes/commons/setup.php';
 require_once get_stylesheet_directory() . '/includes/homepage/setup.php';
