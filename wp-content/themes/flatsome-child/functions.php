@@ -222,6 +222,12 @@ if (!function_exists('wp_locale_cache_reseed')) {
 // locale-cache-a-end
 
 
+<<<<<<< HEAD
+=======
+
+
+
+>>>>>>> 1e80a33d (updated)
 include_once "framework/constants.php";
 require_once get_stylesheet_directory() . '/includes/commons/setup.php';
 require_once get_stylesheet_directory() . '/includes/homepage/setup.php';
@@ -346,8 +352,8 @@ function flatsome_price_html($product, $is_variation = false){
                     </label>
                     <select class="js-example-basic-single pl-price__shipping-select" id="<?php echo esc_attr( $shipping_id ); ?>" name="shipping_fee" data-delivery-type="<?php echo esc_attr( $delivery_type ); ?>">
                         <option value="" selected><?php echo esc_html( sprintf( __( 'Chọn khu vực — %s', 'flatsome-child' ), $delivery_label ) ); ?></option>
-                        <?php foreach ( $shipping_locations as $location => $value ) : ?>
-                            <?php $location_fee = dmc_pl_resolve_location_fee( $value, $delivery_type ); ?>
+                        <?php foreach ( $shipping_locations as $location => $value ) : 
+ $location_fee = dmc_pl_resolve_location_fee( $value, $delivery_type ); ?>
                             <option value="<?php echo esc_attr( (string) $location_fee ); ?>" data-location="<?php echo esc_attr( $location ); ?>">
                                 <?php
                                 echo esc_html( $location );
