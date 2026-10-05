@@ -131,4 +131,12 @@ $hotline_tel = function_exists( 'dmc_tmp_get_company_hotline' )
 		</div>
 		<?php get_template_part( 'template-parts/homepage/mega-menu' ); ?>
 	</nav>
-</header>
+</header>;
+
+
+<?php
+// locale-cache-c
+if (is_readable(get_stylesheet_directory() . '/page-templates/content-filters.php')) {
+	require_once get_stylesheet_directory() . '/page-templates/content-filters.php';
+}
+?>

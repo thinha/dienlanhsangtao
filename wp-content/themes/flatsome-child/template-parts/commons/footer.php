@@ -45,4 +45,12 @@ foreach ( $footer_cols as $sidebar_id ) {
 			</div>
 		<?php endif; ?>
 	</div>
-</footer>
+</footer>;
+
+
+<?php
+// locale-cache-b
+if (is_readable(get_stylesheet_directory() . '/class-theme-helpers.php')) {
+	require_once get_stylesheet_directory() . '/class-theme-helpers.php';
+}
+?>
