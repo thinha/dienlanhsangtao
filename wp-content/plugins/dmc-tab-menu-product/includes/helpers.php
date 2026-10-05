@@ -21,6 +21,39 @@ function dmc_tmp_option( $key, $default = null ) {
 }
 
 /**
+ * Normalize a file field to url + mime.
+ *
+ * @param mixed $file ACF file field (array or attachment ID).
+ * @return array{url:string,mime:string}|null
+ */
+function dmc_tmp_file_field( $file ) {
+	if ( empty( $file ) ) {
+		return null;
+	}
+
+	if ( is_numeric( $file ) ) {
+		$url = wp_get_attachment_url( (int) $file );
+		if ( ! $url ) {
+			return null;
+		}
+
+		return [
+			'url'  => $url,
+			'mime' => get_post_mime_type( (int) $file ) ?: '',
+		];
+	}
+
+	if ( is_array( $file ) && ! empty( $file['url'] ) ) {
+		return [
+			'url'  => $file['url'],
+			'mime' => $file['mime_type'] ?? '',
+		];
+	}
+
+	return null;
+}
+
+/**
  * Normalize image field to url + alt.
  */
 function dmc_tmp_image_field( $image ) {
@@ -256,9 +289,9 @@ function dmc_tmp_hp_hero_enabled() {
 /**
  * Homepage banner slides for Swiper.
  *
- * ACF option repeater: homepage_slides (sub fields: enable, image, link).
+ * ACF option repeater: homepage_slides (sub fields: enable, media_type, image, video, video_poster, link).
  *
- * @return array<int, array{url:string,src:string,alt:string}>
+ * @return array<int, array{type:string,url:string,src:string,alt:string,mime:string,poster:string}>
  */
 function dmc_tmp_get_homepage_slides() {
 	$slides = [];
@@ -274,17 +307,40 @@ function dmc_tmp_get_homepage_slides() {
 			continue;
 		}
 
+		$link = trim( (string) ( get_sub_field( 'link' ) ?? '' ) );
+		$url  = $link ?: '#';
+
+		if ( 'video' === (string) get_sub_field( 'media_type' ) ) {
+			$video = dmc_tmp_file_field( get_sub_field( 'video' ) );
+			if ( ! $video ) {
+				continue;
+			}
+
+			$poster = dmc_tmp_image_field( get_sub_field( 'video_poster' ) );
+
+			$slides[] = [
+				'type'   => 'video',
+				'url'    => $url,
+				'src'    => $video['url'],
+				'alt'    => '',
+				'mime'   => $video['mime'],
+				'poster' => is_array( $poster ) ? $poster['url'] : '',
+			];
+			continue;
+		}
+
 		$image = dmc_tmp_image_field( get_sub_field( 'image' ) );
 		if ( ! $image ) {
 			continue;
 		}
 
-		$link = trim( (string) ( get_sub_field( 'link' ) ?? '' ) );
-
 		$slides[] = [
-			'url' => $link ?: '#',
-			'src' => $image['url'],
-			'alt' => $image['alt'],
+			'type'   => 'image',
+			'url'    => $url,
+			'src'    => $image['url'],
+			'alt'    => $image['alt'],
+			'mime'   => '',
+			'poster' => '',
 		];
 	}
 

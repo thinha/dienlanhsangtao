@@ -918,6 +918,59 @@ body.dmc-homepage-page {
     }
   }
 
+  .hero-slide__video-wrap {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    background: #07111f;
+  }
+
+  .hero-slide__video {
+    width: 100%;
+    height: 100%;
+    display: block;
+    object-fit: contain;
+    background: #07111f;
+  }
+
+  .hero-slide__sound {
+    position: absolute;
+    left: 10px;
+    bottom: 10px;
+    z-index: 2;
+    width: 36px;
+    height: 36px;
+    border: 0;
+    border-radius: 50%;
+    padding: 0;
+    background: rgba(7, 17, 31, 0.72);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+
+    svg {
+      width: 18px;
+      height: 18px;
+      display: block;
+    }
+
+    .is-on {
+      display: none;
+    }
+
+    &:not(.is-muted) {
+      .is-off {
+        display: none;
+      }
+
+      .is-on {
+        display: block;
+      }
+    }
+  }
+
   .hero-slide__link {
     display: block;
     width: 100%;
@@ -927,6 +980,12 @@ body.dmc-homepage-page {
       width: 100%;
       height: auto;
       display: block;
+    }
+
+    &--overlay {
+      position: absolute;
+      inset: 0;
+      z-index: 1;
     }
 
     &--fallback {

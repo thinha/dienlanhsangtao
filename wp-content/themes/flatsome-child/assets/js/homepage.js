@@ -27,7 +27,70 @@
   // Hero banner Swiper
   const heroSwiperEl = root.querySelector('.dmc-hero-swiper');
   if (heroSwiperEl && typeof Swiper !== 'undefined') {
-    new Swiper(heroSwiperEl, {
+    function heroRealSlideCount(swiper) {
+      return Array.prototype.filter.call(swiper.slides, function (slide) {
+        return !slide.classList.contains('swiper-slide-duplicate');
+      }).length;
+    }
+
+    function setHeroSoundState(muted) {
+      heroSwiperEl.querySelectorAll('video').forEach(function (video) {
+        video.muted = muted;
+      });
+      heroSwiperEl.querySelectorAll('.hero-slide__sound').forEach(function (btn) {
+        btn.classList.toggle('is-muted', muted);
+        btn.setAttribute('aria-label', muted ? 'Bật tiếng' : 'Tắt tiếng');
+      });
+    }
+
+    function resumeHeroAutoplay(swiper) {
+      if (heroRealSlideCount(swiper) < 2) return;
+      if (swiper.autoplay && typeof swiper.autoplay.start === 'function') {
+        swiper.autoplay.start();
+      }
+    }
+
+    function playHeroVideo(video, swiper) {
+      const attempt = video.play();
+      if (!attempt || typeof attempt.catch !== 'function') return;
+      attempt.catch(function () {
+        if (!video.muted) {
+          setHeroSoundState(true);
+          video.play().catch(function () {
+            resumeHeroAutoplay(swiper);
+          });
+          return;
+        }
+        resumeHeroAutoplay(swiper);
+      });
+    }
+
+    function syncHeroMedia(swiper) {
+      const active = swiper.slides[swiper.activeIndex];
+      Array.prototype.forEach.call(swiper.slides, function (slide) {
+        if (slide === active) return;
+        const other = slide.querySelector('video');
+        if (other) other.pause();
+      });
+
+      const video = active ? active.querySelector('video') : null;
+      if (!video) {
+        resumeHeroAutoplay(swiper);
+        return;
+      }
+
+      if (swiper.autoplay && typeof swiper.autoplay.stop === 'function') {
+        swiper.autoplay.stop();
+      }
+      try {
+        video.currentTime = 0;
+      } catch (err) {
+        // Metadata may not be ready yet; playback still starts at 0.
+      }
+      playHeroVideo(video, swiper);
+    }
+
+    const heroSwiper = new Swiper(heroSwiperEl, {
       slidesPerView: 1,
       spaceBetween: 0,
       loop: true,
@@ -47,6 +110,45 @@
         el: root.querySelector('.dmc-hero-pagination'),
         clickable: true,
       },
+      on: {
+        init: function () {
+          syncHeroMedia(this);
+        },
+        slideChangeTransitionEnd: function () {
+          syncHeroMedia(this);
+        },
+        autoplayStart: function () {
+          const active = this.slides[this.activeIndex];
+          if (active && active.querySelector('video') && this.autoplay) {
+            this.autoplay.stop();
+          }
+        },
+      },
+    });
+
+    heroSwiperEl.addEventListener('ended', function (event) {
+      const video = event.target;
+      if (!video || video.tagName !== 'VIDEO') return;
+      if (heroRealSlideCount(heroSwiper) < 2) {
+        video.currentTime = 0;
+        playHeroVideo(video, heroSwiper);
+        return;
+      }
+      heroSwiper.slideNext();
+    }, true);
+
+    heroSwiperEl.addEventListener('click', function (event) {
+      const btn = event.target.closest('.hero-slide__sound');
+      if (!btn || !heroSwiperEl.contains(btn)) return;
+      event.preventDefault();
+      event.stopPropagation();
+      const wrap = btn.closest('.hero-slide__video-wrap');
+      const video = wrap ? wrap.querySelector('video') : null;
+      if (!video) return;
+      setHeroSoundState(!video.muted);
+      if (video.paused) {
+        playHeroVideo(video, heroSwiper);
+      }
     });
   }
 

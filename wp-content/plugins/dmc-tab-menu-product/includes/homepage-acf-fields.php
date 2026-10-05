@@ -94,7 +94,7 @@ function dmc_tmp_homepage_acf_field_definitions() {
 			'type'         => 'repeater',
 			'layout'       => 'block',
 			'button_label' => 'Thêm slide',
-			'instructions' => 'Upload ảnh banner. Mỗi slide hiển thị 1 ảnh, tự chuyển sau vài giây. Kích thước khuyến nghị: 1200×400 px trở lên.',
+			'instructions' => 'Mỗi slide là 1 ảnh hoặc 1 video 16:9. Ảnh tự chuyển sau số giây bên dưới. Video phát hết rồi mới chuyển slide.',
 			'sub_fields'   => [
 				[
 					'key'           => 'field_tmp_hp_slide_enable',
@@ -105,6 +105,19 @@ function dmc_tmp_homepage_acf_field_definitions() {
 					'ui'            => 1,
 				],
 				[
+					'key'           => 'field_tmp_hp_slide_media_type',
+					'label'         => 'Loại nội dung',
+					'name'          => 'media_type',
+					'type'          => 'button_group',
+					'choices'       => [
+						'image' => 'Ảnh',
+						'video' => 'Video 16:9',
+					],
+					'default_value' => 'image',
+					'layout'        => 'horizontal',
+					'return_format' => 'value',
+				],
+				[
 					'key'           => 'field_tmp_hp_slide_image',
 					'label'         => 'Ảnh banner',
 					'name'          => 'image',
@@ -113,13 +126,62 @@ function dmc_tmp_homepage_acf_field_definitions() {
 					'preview_size'  => 'medium',
 					'library'       => 'all',
 					'required'      => 1,
+					'instructions'  => 'Kích thước khuyến nghị: 1200×400 px trở lên.',
+					'conditional_logic' => [
+						[
+							[
+								'field'    => 'field_tmp_hp_slide_media_type',
+								'operator' => '!=',
+								'value'    => 'video',
+							],
+						],
+					],
+				],
+				[
+					'key'           => 'field_tmp_hp_slide_video',
+					'label'         => 'Video',
+					'name'          => 'video',
+					'type'          => 'file',
+					'return_format' => 'array',
+					'library'       => 'all',
+					'mime_types'    => 'mp4,webm',
+					'required'      => 1,
+					'instructions'  => 'MP4 hoặc WebM, đúng tỷ lệ 16:9.',
+					'conditional_logic' => [
+						[
+							[
+								'field'    => 'field_tmp_hp_slide_media_type',
+								'operator' => '==',
+								'value'    => 'video',
+							],
+						],
+					],
+				],
+				[
+					'key'           => 'field_tmp_hp_slide_video_poster',
+					'label'         => 'Ảnh bìa video (tuỳ chọn)',
+					'name'          => 'video_poster',
+					'type'          => 'image',
+					'return_format' => 'array',
+					'preview_size'  => 'medium',
+					'library'       => 'all',
+					'instructions'  => 'Ảnh hiện trước khi video kịp tải. Nên cùng tỷ lệ 16:9.',
+					'conditional_logic' => [
+						[
+							[
+								'field'    => 'field_tmp_hp_slide_media_type',
+								'operator' => '==',
+								'value'    => 'video',
+							],
+						],
+					],
 				],
 				[
 					'key'          => 'field_tmp_hp_slide_link',
 					'label'        => 'Link khi bấm (tuỳ chọn)',
 					'name'         => 'link',
 					'type'         => 'url',
-					'instructions' => 'Để trống nếu không cần link.',
+					'instructions' => 'Để trống nếu không cần link. Với video, bấm vào khung sẽ mở link này.',
 				],
 			],
 		],
@@ -132,7 +194,7 @@ function dmc_tmp_homepage_acf_field_definitions() {
 			'min'           => 2,
 			'max'           => 15,
 			'step'          => 1,
-			'instructions'  => 'Thời gian mỗi slide hiển thị trước khi tự chuyển sang slide tiếp theo.',
+			'instructions'  => 'Chỉ áp dụng cho slide ảnh. Slide video phát hết rồi mới chuyển.',
 		],
 		[
 			'key'       => 'field_tmp_hp_tab_benefits',

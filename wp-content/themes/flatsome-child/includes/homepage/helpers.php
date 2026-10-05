@@ -495,15 +495,56 @@ function dmc_homepage_get_slides() {
 	if ( function_exists( 'have_rows' ) && have_rows( 'homepage_slides', 'option' ) ) {
 		while ( have_rows( 'homepage_slides', 'option' ) ) {
 			the_row();
+			$link = get_sub_field( 'link' ) ?: '#';
+
+			if ( 'video' === (string) get_sub_field( 'media_type' ) ) {
+				$video = get_sub_field( 'video' );
+				$src   = '';
+				$mime  = '';
+
+				if ( is_array( $video ) && ! empty( $video['url'] ) ) {
+					$src  = $video['url'];
+					$mime = $video['mime_type'] ?? '';
+				} elseif ( is_numeric( $video ) ) {
+					$src  = wp_get_attachment_url( (int) $video ) ?: '';
+					$mime = get_post_mime_type( (int) $video ) ?: '';
+				}
+
+				if ( ! $src ) {
+					continue;
+				}
+
+				$poster     = get_sub_field( 'video_poster' );
+				$poster_url = '';
+				if ( is_array( $poster ) && ! empty( $poster['url'] ) ) {
+					$poster_url = $poster['url'];
+				} elseif ( is_numeric( $poster ) ) {
+					$poster_url = wp_get_attachment_image_url( (int) $poster, 'full' ) ?: '';
+				}
+
+				$slides[] = [
+					'type'   => 'video',
+					'url'    => $link,
+					'src'    => $src,
+					'alt'    => '',
+					'mime'   => $mime,
+					'poster' => $poster_url,
+				];
+				continue;
+			}
+
 			$image = get_sub_field( 'image' );
 			if ( ! $image ) {
 				continue;
 			}
 
 			$slides[] = [
-				'url' => get_sub_field( 'link' ) ?: '#',
-				'src' => is_array( $image ) ? $image['url'] : wp_get_attachment_image_url( $image, 'full' ),
-				'alt' => is_array( $image ) ? ( $image['alt'] ?? '' ) : get_post_meta( $image, '_wp_attachment_image_alt', true ),
+				'type'   => 'image',
+				'url'    => $link,
+				'src'    => is_array( $image ) ? $image['url'] : wp_get_attachment_image_url( $image, 'full' ),
+				'alt'    => is_array( $image ) ? ( $image['alt'] ?? '' ) : get_post_meta( $image, '_wp_attachment_image_alt', true ),
+				'mime'   => '',
+				'poster' => '',
 			];
 		}
 	}
@@ -516,9 +557,12 @@ function dmc_homepage_get_slides() {
 					continue;
 				}
 				$slides[] = [
-					'url' => '#',
-					'src' => is_array( $image ) ? $image['url'] : wp_get_attachment_image_url( $image, 'full' ),
-					'alt' => is_array( $image ) ? ( $image['alt'] ?? '' ) : '',
+					'type'   => 'image',
+					'url'    => '#',
+					'src'    => is_array( $image ) ? $image['url'] : wp_get_attachment_image_url( $image, 'full' ),
+					'alt'    => is_array( $image ) ? ( $image['alt'] ?? '' ) : '',
+					'mime'   => '',
+					'poster' => '',
 				];
 			}
 		}

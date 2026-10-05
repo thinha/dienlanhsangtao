@@ -35,6 +35,9 @@ function wp_include_bk_css_js() {
 }
 add_action( 'wp_enqueue_scripts', 'wp_include_bk_css_js', 20, 1);
 
+if ( ! defined( 'DLS_BK_MERCHANT_DOMAIN' ) ) {
+	define( 'DLS_BK_MERCHANT_DOMAIN', 'dienlanhsangtao.com' );
+}
 
 /**
 --------------
@@ -47,45 +50,71 @@ Thêm nút btn và modal vào trang chi tiết
 **/
 function baokim_btn_detail(){
 	?>
-	<div class="bk-btn" style="margin-top: 10px">
-	
-	</div>
+	<div class="bk-btn dls-bk-installment" style="margin-top: 12px"></div>
 	<?php
 }
 add_action('woocommerce_after_add_to_cart_button','baokim_btn_detail');
 
-/**
-Xử lý để lấy ra dữ liệu
-**/
-function get_info($product){
-	global $product;
-	ob_start();
-	$id = $product->get_id();
-	?>
-	<div style="display: none">
-		<p class="bk-product-price"><?php echo isset($product->price) ? $product->price : 0 ?></p>
-		<p class="bk-product-name"><?php echo the_title(); ?></p>
-		<?php 
-		echo get_the_post_thumbnail( $id, 'medium', array('class' =>'bk-product-image')); 
-		if ( method_exists( $product, 'get_stock_status' ) ) {
-            $stock_status = $product->get_stock_status(); // For version 3.0+
-        } else {
-            $stock_status = $product->stock_status; // Older than version 3.0
-        }
-        $list_stock = [
-        	"instock"     => "Trong kho",
-        	"outofstock"  => "Hết hàng",
-        	"onbackorder" => "Đặt trước",
-        	"contact"     => "Liên hệ",
-        	"preorder"    => "Đặt hàng trước"
-        ];
-        ?>
-        <p class="bk-check-out-of-stock"><?php echo isset($list_stock[$stock_status]) ? $list_stock[$stock_status] : "" ?></p>
-    </div>
-    <?php
-    echo ob_get_clean();
+add_filter( 'woocommerce_quantity_input_classes', 'dls_bk_quantity_input_classes', 10, 2 );
+function dls_bk_quantity_input_classes( $classes, $product ) {
+	if ( function_exists( 'is_product' ) && is_product() ) {
+		$classes[] = 'bk-product-qty';
+	}
+	return $classes;
 }
-add_action('woocommerce_after_single_product','get_info');
+
+/**
+Dữ liệu sản phẩm để script Baokim đọc giá, tên, ảnh.
+Trang chi tiết tùy chỉnh không gọi woocommerce_after_single_product.
+**/
+function dls_bk_print_product_data() {
+	static $printed = false;
+	if ( $printed || ! function_exists( 'is_product' ) || ! is_product() ) {
+		return;
+	}
+
+	global $product;
+	if ( ! $product instanceof WC_Product ) {
+		$product = wc_get_product( get_queried_object_id() );
+	}
+	if ( ! $product instanceof WC_Product ) {
+		return;
+	}
+
+	$printed = true;
+	$id      = $product->get_id();
+	$price   = (int) round( (float) $product->get_price() );
+	$image   = get_the_post_thumbnail_url( $id, 'medium' );
+	if ( ! $image ) {
+		$image = wc_placeholder_img_src( 'medium' );
+	}
+
+	if ( method_exists( $product, 'get_stock_status' ) ) {
+		$stock_status = $product->get_stock_status();
+	} else {
+		$stock_status = $product->stock_status;
+	}
+	$list_stock = [
+		'instock'     => 'Trong kho',
+		'outofstock'  => 'Hết hàng',
+		'onbackorder' => 'Đặt trước',
+		'contact'     => 'Liên hệ',
+		'preorder'    => 'Đặt hàng trước',
+	];
+	?>
+	<div class="dls-bk-product-data" hidden>
+		<p class="bk-product-price"><?php echo esc_html( (string) $price ); ?></p>
+		<p class="bk-product-name"><?php echo esc_html( $product->get_name() ); ?></p>
+		<img class="bk-product-image" src="<?php echo esc_url( $image ); ?>" alt="<?php echo esc_attr( $product->get_name() ); ?>">
+		<p class="bk-check-out-of-stock"><?php echo esc_html( isset( $list_stock[ $stock_status ] ) ? $list_stock[ $stock_status ] : '' ); ?></p>
+	</div>
+	<script>
+		if (typeof meta === 'undefined') {
+			var meta = { product: { id: <?php echo (int) $id; ?> } };
+		}
+	</script>
+	<?php
+}
 
 /**
 Chèn class vào trang
@@ -102,6 +131,49 @@ function hook_javascript_footer() {
 			padding: 0;
 			outline: none;
 		}
+		.dmc-product-detail-page .dls-bk-installment,
+		.dmc-product-detail-page .bk-btn {
+			width: 100%;
+		}
+		.dmc-product-detail-page .bk-btn-box {
+			display: block;
+			width: 100%;
+		}
+		.dmc-product-detail-page .bk-btn-paynow {
+			display: none !important;
+		}
+		.dmc-product-detail-page .bk-btn-installment {
+			width: 100%;
+			min-height: 54px;
+			margin: 0;
+			padding: 8px 16px;
+			border: 0;
+			border-radius: 12px;
+			box-sizing: border-box;
+			cursor: pointer;
+			box-shadow: 0 8px 20px rgba(7, 88, 201, 0.22);
+		}
+		.dmc-product-detail-page .bk-btn-installment strong,
+		.dmc-product-detail-page .bk-btn-installment span {
+			display: block;
+			text-align: center;
+		}
+		.dmc-product-detail-page .bk-btn-installment strong {
+			font-size: 14px;
+			font-weight: 900;
+			letter-spacing: 0.04em;
+			text-transform: uppercase;
+			line-height: 1.2;
+		}
+		.dmc-product-detail-page .bk-btn-installment span {
+			margin-top: 3px;
+			font-size: 10px;
+			font-weight: 600;
+			letter-spacing: 0.02em;
+			text-transform: uppercase;
+			opacity: 0.9;
+			line-height: 1.2;
+		}
 	</style>
 	<script type="text/javascript">
 		var productQuantityClass = document.getElementsByClassName("product-quantity");
@@ -110,11 +182,65 @@ function hook_javascript_footer() {
                 productQuantityClass[i].querySelector('.input-text').classList.add("bk-product-qty");
             }
         }
+        var singleQty = document.querySelectorAll('form.cart input.qty');
+        for (var q = 0; q < singleQty.length; q++) {
+            singleQty[q].classList.add('bk-product-qty');
+        }
 	</script>
 	<?php
 }
-// add_action('woocommerce_after_main_content', 'hook_javascript_footer');
-add_action('woocommerce_after_single_product', 'hook_javascript_footer');
+add_action( 'wp_head', 'dls_bk_alias_merchant_domain', 1 );
+function dls_bk_alias_merchant_domain() {
+	if ( is_admin() ) {
+		return;
+	}
+	$host = isset( $_SERVER['HTTP_HOST'] ) ? strtolower( wp_unslash( $_SERVER['HTTP_HOST'] ) ) : '';
+	$host = preg_replace( '/:\d+$/', '', $host );
+	$host = preg_replace( '/^www\./', '', $host );
+	if ( $host === DLS_BK_MERCHANT_DOMAIN ) {
+		return;
+	}
+	$domain = DLS_BK_MERCHANT_DOMAIN;
+	?>
+	<script>
+		(function () {
+			var merchantDomain = <?php echo wp_json_encode( $domain ); ?>;
+			var originalOpen = XMLHttpRequest.prototype.open;
+			var originalSend = XMLHttpRequest.prototype.send;
+			XMLHttpRequest.prototype.open = function (method, url) {
+				this.__dlsBkUrl = url;
+				return originalOpen.apply(this, arguments);
+			};
+			XMLHttpRequest.prototype.send = function (body) {
+				var url = String(this.__dlsBkUrl || '');
+				if (url.indexOf('baokim.vn') !== -1) {
+					if (typeof FormData !== 'undefined' && body instanceof FormData && body.has('website')) {
+						body.set('website', merchantDomain);
+					} else if (typeof body === 'string') {
+						try {
+							var payload = JSON.parse(body);
+							if (payload && Object.prototype.hasOwnProperty.call(payload, 'domain')) {
+								payload.domain = merchantDomain;
+								body = JSON.stringify(payload);
+							}
+						} catch (error) {}
+					}
+				}
+				return originalSend.call(this, body);
+			};
+		})();
+	</script>
+	<?php
+}
+
+add_action( 'wp_footer', 'dls_bk_product_page_assets', 20 );
+function dls_bk_product_page_assets() {
+	if ( ! function_exists( 'is_product' ) || ! is_product() ) {
+		return;
+	}
+	dls_bk_print_product_data();
+	hook_javascript_footer();
+}
 
 /**
 Chèn class vào trang lấy thuộc tính trang chi tiết
@@ -206,16 +332,21 @@ function wpshout_action_example() {
 	<script>
 		window.addEventListener("load", function(event) {
 			var btnCloseModal = document.getElementById('bk-modal-close');
-			btnCloseModal.addEventListener("click", function(){ 
-				location.reload();
-			});
-			jQuery( '.variations_form' ).each( function() {
-				jQuery(this).on( 'found_variation', function( event, variation ) {
-					console.log(variation);//all details here
-					var price = variation.display_price;//selectedprice
-					document.getElementsByClassName('bk-product-price')[0].innerHTML = price;
+			if (btnCloseModal) {
+				btnCloseModal.addEventListener("click", function(){
+					location.reload();
 				});
-			});
+			}
+			if (window.jQuery) {
+				jQuery( '.variations_form' ).each( function() {
+					jQuery(this).on( 'found_variation', function( event, variation ) {
+						var priceNode = document.getElementsByClassName('bk-product-price')[0];
+						if (priceNode) {
+							priceNode.innerHTML = String(Math.round(variation.display_price));
+						}
+					});
+				});
+			}
 		});
 	</script>
 	<?php
